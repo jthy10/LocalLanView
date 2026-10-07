@@ -1,0 +1,104 @@
+[
+  {"type": "Router", "weight": 6, "why": "advertises an Internet Gateway Device (UPnP)", "ssdp": "InternetGatewayDevice|WANDevice|WANConnectionDevice"},
+  {"type": "Router", "weight": 4, "why": "vendor makes routers", "vendor": "netgear|tp-?link|asustek|ubiquiti|mikrotik|routerboard|linksys|arris|technicolor|sagemcom|zyxel|d-link|eero|avm|juniper|cisco|fortinet|draytek|huawei|zte|tenda|commscope|calix|actiontec|plume|nokia solutions|sercomm|humax|vantiva"},
+  {"type": "Router", "weight": 3, "why": "DNS and web admin open", "allPorts": [53, 80]},
+  {"type": "Router", "weight": 2, "why": "DNS and HTTPS admin open", "allPorts": [53, 443]},
+  {"type": "Router", "weight": 3, "why": "hostname looks like a router", "hostname": "^(router|gateway|gw|openwrt|pfsense|opnsense|edgerouter|unifi|udm|fritz\\.box|eero|orbi|rt-)"},
+  {"type": "Router", "weight": 3, "why": "router web UI banner", "banner": "openwrt|luci|pfsense|opnsense|routeros|mikrotik|fritz|dd-wrt|tomato|unifi"},
+
+  {"type": "Access Point", "weight": 5, "why": "access point model", "text": "\\b(uap|u6-|u7-|eap\\d|aironet|meraki mr|instant on ap|deco)\\b"},
+  {"type": "Switch", "weight": 5, "why": "managed switch model", "text": "\\b(usw|gs\\d{3}|tl-sg|sg\\d{3}|catalyst|procurve|aruba \\d{4})"},
+
+  {"type": "Printer", "weight": 8, "why": "advertises printing over mDNS", "mdns": ["_ipp._tcp", "_ipps._tcp", "_printer._tcp", "_pdl-datastream._tcp"]},
+  {"type": "Printer", "weight": 5, "why": "printer ports open (IPP/JetDirect/LPD)", "anyPorts": [631, 9100, 515]},
+  {"type": "Printer", "weight": 4, "why": "vendor makes printers", "vendor": "brother|canon|epson|seiko epson|hewlett|hp inc|lexmark|kyocera|ricoh|xerox|konica|sharp corp|oki electric|zebra"},
+  {"type": "Printer", "weight": 3, "why": "SSDP describes a printer", "ssdp": "printer|Printer:"},
+  {"type": "Printer", "weight": 2, "why": "scanner service (usually a multifunction printer)", "mdns": ["_scanner._tcp", "_uscan._tcp"]},
+
+  {"type": "NAS", "weight": 6, "why": "vendor makes NAS devices", "vendor": "synology|qnap|western digital|buffalo|asustor|terramaster|drobo|netapp"},
+  {"type": "NAS", "weight": 3, "why": "file sharing over SMB/AFP plus web UI", "anyPorts": [445, 548], "allPorts": [5000]},
+  {"type": "NAS", "weight": 4, "why": "advertises Time Machine disks", "mdns": ["_adisk._tcp"]},
+  {"type": "NAS", "weight": 4, "why": "hostname looks like a NAS", "hostname": "(^|-)(nas|diskstation|ds\\d{3}|truenas|freenas|unraid|qnap)"},
+  {"type": "NAS", "weight": 3, "why": "NAS web banner", "banner": "synology|qnap|truenas|unraid"},
+
+  {"type": "Windows PC", "weight": 5, "why": "SMB + NetBIOS + RPC pattern", "allPorts": [135, 139, 445]},
+  {"type": "Windows PC", "weight": 3, "why": "SMB and NetBIOS open", "allPorts": [139, 445]},
+  {"type": "Windows PC", "weight": 4, "why": "Remote Desktop open", "anyPorts": [3389]},
+  {"type": "Windows PC", "weight": 4, "why": "Windows-style hostname", "hostname": "^(desktop|laptop|win|pc)-[a-z0-9]{4,}"},
+  {"type": "Windows PC", "weight": 2, "why": "Web Services for Devices (WSD) open", "anyPorts": [5357]},
+  {"type": "Windows PC", "weight": 2, "why": "PC vendor", "vendor": "dell|lenovo|micro-star|msi|gigabyte|asrock|acer|hewlett packard|intel corporate|realtek|liteon|azurewave|framework"},
+
+  {"type": "Mac", "weight": 5, "why": "macOS-style hostname", "hostname": "(macbook|imac|mac-?mini|mac-?pro|mac-?studio)"},
+  {"type": "Mac", "weight": 4, "why": "advertises SSH/SMB/screen sharing like a Mac", "mdns": ["_sftp-ssh._tcp", "_rfb._tcp", "_afpovertcp._tcp"], "vendor": "apple"},
+  {"type": "Mac", "weight": 3, "why": "Mac model in device-info", "text": "^(macbook|imac|macmini|macpro|mac1[0-9]|mac\\d+,\\d+)"},
+
+  {"type": "Phone", "weight": 5, "why": "iPhone hostname or model", "hostname": "iphone"},
+  {"type": "Phone", "weight": 5, "why": "iPhone model in device-info", "text": "^iphone\\d"},
+  {"type": "Phone", "weight": 4, "why": "iOS sync port open", "anyPorts": [62078]},
+  {"type": "Phone", "weight": 4, "why": "Android-style hostname", "hostname": "^(android|galaxy|pixel|oneplus|redmi|xiaomi|moto|sm-[a-z]\\d)"},
+  {"type": "Phone", "weight": 3, "why": "phone vendor", "vendor": "samsung electronics|oneplus|xiaomi|motorola mobility|google|oppo|vivo|huawei device|honor"},
+  {"type": "Phone", "weight": 2, "why": "randomized MAC (common on phones)", "private": true},
+  {"type": "Phone", "weight": 2, "why": "Apple companion link (iPhone/iPad/Mac)", "mdns": ["_companion-link._tcp", "_apple-mobdev2._tcp"]},
+
+  {"type": "Tablet", "weight": 6, "why": "iPad hostname or model", "hostname": "ipad"},
+  {"type": "Tablet", "weight": 6, "why": "iPad model in device-info", "text": "^ipad\\d"},
+
+  {"type": "Smart TV", "weight": 6, "why": "TV model or name", "text": "\\b(tv|bravia|qn\\d|un\\d{2}|oled|webos|tizen|roku tv|vizio|hisense|tcl)\\b"},
+  {"type": "Smart TV", "weight": 4, "why": "DLNA media renderer", "ssdp": "MediaRenderer"},
+  {"type": "Smart TV", "weight": 3, "why": "TV vendor", "vendor": "lg electronics|samsung electronics|sony|vizio|hisense|tcl|sharp|panasonic|philips|roku"},
+  {"type": "Smart TV", "weight": 4, "why": "Android TV remote service", "mdns": ["_androidtvremote2._tcp"]},
+  {"type": "Smart TV", "weight": 3, "why": "Apple TV model", "text": "^appletv\\d"},
+
+  {"type": "Streaming Device", "weight": 7, "why": "advertises Google Cast", "mdns": ["_googlecast._tcp"]},
+  {"type": "Streaming Device", "weight": 4, "why": "Cast ports open", "allPorts": [8008, 8009]},
+  {"type": "Streaming Device", "weight": 4, "why": "Apple TV / AirPlay receiver", "mdns": ["_airplay._tcp"], "text": "^appletv"},
+  {"type": "Streaming Device", "weight": 6, "why": "Roku / Fire TV", "text": "\\b(roku|fire ?tv|aft[a-z]+|chromecast)\\b"},
+  {"type": "Streaming Device", "weight": 4, "why": "Amazon whisperplay", "mdns": ["_amzn-wplay._tcp"]},
+  {"type": "Streaming Device", "weight": 3, "why": "game streaming host", "mdns": ["_nvstream._tcp"]},
+
+  {"type": "Smart Speaker", "weight": 7, "why": "Sonos", "vendor": "sonos"},
+  {"type": "Smart Speaker", "weight": 5, "why": "speaker model", "text": "\\b(sonos|homepod|audiopod|nest (mini|audio|hub)|google home|echo|bose|play:\\d|era \\d{3})\\b"},
+  {"type": "Smart Speaker", "weight": 4, "why": "AirPlay audio only (RAOP without video)", "mdns": ["_raop._tcp"], "text": "^audioaccessory"},
+  {"type": "Smart Speaker", "weight": 3, "why": "Sonos control port", "anyPorts": [1400]},
+  {"type": "Smart Speaker", "weight": 2, "why": "Spotify Connect target", "mdns": ["_spotify-connect._tcp"]},
+
+  {"type": "Game Console", "weight": 6, "why": "console vendor", "vendor": "nintendo|sony interactive|microsoft.*xbox"},
+  {"type": "Game Console", "weight": 6, "why": "console hostname", "hostname": "(xbox|playstation|ps[345]|nintendo|switch)"},
+
+  {"type": "Camera", "weight": 6, "why": "camera vendor", "vendor": "hikvision|dahua|axis communications|amcrest|reolink|wyze|arlo|ring|foscam|uniview|hanwha|vivotek|eufy|blink"},
+  {"type": "Camera", "weight": 4, "why": "RTSP stream open", "anyPorts": [554]},
+  {"type": "Camera", "weight": 4, "why": "camera in name or model", "text": "camera|\\bcam\\b|doorbell|nvr|dvr"},
+  {"type": "Camera", "weight": 3, "why": "camera hostname", "hostname": "(cam|camera|doorbell|nvr|ipc)"},
+
+  {"type": "Smart Home Hub", "weight": 7, "why": "Home Assistant", "mdns": ["_home-assistant._tcp"]},
+  {"type": "Smart Home Hub", "weight": 5, "why": "Home Assistant port open", "anyPorts": [8123]},
+  {"type": "Smart Home Hub", "weight": 6, "why": "Hue bridge", "mdns": ["_hue._tcp"]},
+  {"type": "Smart Home Hub", "weight": 4, "why": "hub vendor", "vendor": "signify|philips lighting|samsung smartthings|smartthings|hubitat|ezviz|aqara|homey|athom"},
+  {"type": "Smart Home Hub", "weight": 3, "why": "Thread border router", "mdns": ["_meshcop._udp", "_trel._udp"]},
+
+  {"type": "IoT Device", "weight": 5, "why": "HomeKit accessory", "mdns": ["_hap._tcp"]},
+  {"type": "IoT Device", "weight": 4, "why": "Matter device", "mdns": ["_matter._tcp", "_matterc._udp"]},
+  {"type": "IoT Device", "weight": 6, "why": "ESPHome / Shelly / Tuya", "mdns": ["_esphomelib._tcp", "_shelly._tcp", "_miio._udp"]},
+  {"type": "IoT Device", "weight": 5, "why": "IoT module vendor", "vendor": "espressif|tuya|shelly|allterco|sonoff|itead|wiz|lifx|meross|kasa|tp-link systems|belkin|wemo|ecobee|nest labs|tado|govee|xiaomi communications|chongqing fugui|hui zhou gaoshengda|beijing xiaomi|amazon technologies"},
+  {"type": "IoT Device", "weight": 4, "why": "Tuya local port open", "anyPorts": [6668]},
+  {"type": "IoT Device", "weight": 3, "why": "IoT hostname", "hostname": "^(esp|shelly|tasmota|wled|tuya|smart-?plug|kasa|wemo|lifx|wiz|ecobee|nest|thermostat|bulb)"},
+  {"type": "IoT Device", "weight": 2, "why": "MQTT open", "anyPorts": [1883, 8883]},
+
+  {"type": "Media Server", "weight": 6, "why": "Plex", "anyPorts": [32400]},
+  {"type": "Media Server", "weight": 5, "why": "media server advertised", "mdns": ["_plexmediasvr._tcp", "_daap._tcp"]},
+  {"type": "Media Server", "weight": 4, "why": "DLNA media server", "ssdp": "MediaServer"},
+
+  {"type": "Raspberry Pi / SBC", "weight": 7, "why": "Raspberry Pi vendor", "vendor": "raspberry pi"},
+  {"type": "Raspberry Pi / SBC", "weight": 4, "why": "Pi-style hostname", "hostname": "^(raspberrypi|pi\\d*|rpi|octopi|pihole|homeassistant)"},
+
+  {"type": "Server", "weight": 3, "why": "SSH open", "anyPorts": [22]},
+  {"type": "Server", "weight": 2, "why": "database open", "anyPorts": [3306, 5432]},
+  {"type": "Server", "weight": 2, "why": "Linux SSH banner", "banner": "openssh.*(ubuntu|debian|raspbian|fedora|alpine)"},
+  {"type": "Server", "weight": 2, "why": "workstation advertised (Avahi)", "mdns": ["_workstation._tcp"]},
+
+  {"type": "Virtual Machine", "weight": 7, "why": "virtual NIC vendor", "vendor": "vmware|parallels|xensource|qemu|virtualbox|oracle virtualbox|microsoft corporation.*hyper|proxmox"},
+
+  {"type": "Wearable", "weight": 5, "why": "watch hostname", "hostname": "(watch|galaxy-watch|fitbit|garmin)"},
+
+  {"type": "Laptop / Computer", "weight": 2, "why": "laptop Wi-Fi chip vendor", "vendor": "intel corporate|liteon|azurewave|hon hai|cloud network technology|rivet networks|killer"}
+]

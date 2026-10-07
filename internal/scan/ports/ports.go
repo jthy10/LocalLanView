@@ -20,7 +20,7 @@ import (
 // Default is the list of ports probed on every live host.
 var Default = map[int]string{
 	21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns", 80: "http",
-	110: "pop3", 139: "netbios-ssn", 143: "imap", 443: "https", 445: "smb",
+	110: "pop3", 135: "msrpc", 139: "netbios-ssn", 143: "imap", 443: "https", 445: "smb",
 	515: "lpd", 548: "afp", 554: "rtsp", 631: "ipp", 1400: "sonos",
 	1883: "mqtt", 2049: "nfs", 3000: "http-dev", 3306: "mysql", 3389: "rdp",
 	5000: "upnp/http", 5001: "https-alt", 5357: "wsd", 5432: "postgres",
