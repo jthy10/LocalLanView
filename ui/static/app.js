@@ -85,6 +85,7 @@ function label(d) {
   if (d.hostname) return d.hostname;
   if (d.model) return d.model;
   if (d.vendor) return d.vendor + " device";
+  if (deviceType(d) !== "Unknown") return deviceType(d);
   if (d.privateMac) return "Device with private MAC";
   return d.ip || d.key;
 }
@@ -401,7 +402,7 @@ function deviceTable(ds) {
     onclick: k ? () => { setSort(k); } : null,
   }, t)));
   const rows = ds.map((d) => h("tr", { onclick: () => { location.hash = "#/device/" + d.id; } },
-    h("td", {}, h("div", { class: "name" }, h("span", { class: "dot" + (isOnline(d) ? " on" : "") }), " ", label(d),
+    h("td", {}, h("div", { class: "name", title: label(d) }, h("span", { class: "dot" + (isOnline(d) ? " on" : "") }), " ", label(d),
       d.trusted ? h("span", { class: "chip accent" }, " Trusted") : null)),
     h("td", { class: "mono" }, d.ip || "—"),
     h("td", {}, typeChip(d)),
@@ -569,7 +570,7 @@ async function renderDevice(id) {
       h("div", { class: "titles" },
         h("h1", {}, label(d)),
         h("div", { class: "sub" }, [d.ip, vendorLabel(d), deviceType(d)].filter(Boolean).join(" · ")),
-        h("div", { class: "card-meta" }, seenChip(d), d.trusted ? h("span", { class: "chip accent" }, icon("shield"), "Trusted") : h("span", { class: "chip warn" }, "Not marked as known")),
+        h("div", { class: "card-meta" }, seenChip(d), d.trusted ? h("span", { class: "chip accent" }, icon("shield"), "Trusted") : h("span", { class: "chip warn" }, "Not trusted")),
       ),
       h("div", { class: "actions" },
         h("button", { class: "btn", type: "button", onclick: () => save({ trusted: !d.trusted }, d.trusted ? "Unmarked" : "Marked as trusted") },
@@ -608,7 +609,7 @@ async function renderDevice(id) {
           ...Object.entries(d.attrs || {}).map(([k, v]) => [k, v]),
         ]))),
         panel("Your labels", h("div", { class: "panel-body" },
-          h("div", { class: "field" }, h("label", {}, "Name"), h("div", { class: "toolbar" }, nameInput,
+          h("div", { class: "field" }, h("label", {}, "Name"), h("div", { class: "inline" }, nameInput,
             h("button", { class: "btn", type: "button", onclick: () => save({ customName: nameInput.value }, "Saved") }, "Save"))),
           h("div", { class: "field" }, h("label", {}, "Type"), typeSel),
           h("div", { class: "field" }, h("label", {}, "Tags"), h("div", { class: "tags" },

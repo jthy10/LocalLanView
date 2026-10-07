@@ -348,6 +348,8 @@ func Label(d *store.Device) string {
 		return d.Model
 	case d.Vendor != "":
 		return d.Vendor + " device"
+	case d.Type != "" && d.Type != "Unknown":
+		return d.Type
 	case d.PrivateMAC:
 		return "Device with private MAC"
 	case d.IP != "":

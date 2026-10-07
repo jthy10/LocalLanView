@@ -140,7 +140,9 @@ textarea { width: 100%; min-height: 80px; resize: vertical; }
 label { display: block; font-weight: 500; margin-bottom: 4px; }
 .field { margin-bottom: 14px; }
 .field input { width: 100%; }
-.hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
 .error { color: var(--danger); font-size: 13px; min-height: 18px; }
 
 /* cards & panels */
@@ -153,7 +155,8 @@ label { display: block; font-weight: 500; margin-bottom: 4px; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
 .stat { padding: 14px 16px; }
-.stat .num { font-size: 24px; font-weight: 650; }
+.stat { min-width: 0; }
+.stat .num { font-size: 24px; font-weight: 650; overflow-wrap: anywhere; }
 .stat .lbl { color: var(--muted); font-size: 12.5px; }
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
@@ -218,7 +221,7 @@ th.sorted.asc::after { content: " ▴"; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--surface-2); }
 tr:last-child td { border-bottom: 0; }
-td .name { font-weight: 600; }
+td .name { font-weight: 600; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 td.wrap { white-space: normal; }
 
 /* detail */
@@ -231,7 +234,7 @@ td.wrap { white-space: normal; }
 .detail-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
-.kv { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px 12px; }
+.kv { margin: 0; display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px 12px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; word-break: break-word; }
 .reasons { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
@@ -281,4 +284,5 @@ td.wrap { white-space: normal; }
   .nav { order: 3; width: 100%; overflow-x: auto; }
   .view { padding: 16px; }
   .scan-state { display: none; }
+  .stat .num { font-size: 19px; }
 }
