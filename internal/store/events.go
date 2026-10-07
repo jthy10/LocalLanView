@@ -33,8 +33,8 @@ func (s *Store) AddEvent(ctx context.Context, e *Event) error {
 	if e.DeviceID != 0 {
 		dev = e.DeviceID
 	}
-	res, err := s.db.ExecContext(ctx, `INSERT INTO events(time, kind, device_id, message, data) VALUES(?, ?, ?, ?, ?)`,
-		ms(e.Time), e.Kind, dev, e.Message, toJSON(e.Data))
+	res, err := s.db.ExecContext(ctx, `INSERT INTO events(time, kind, device_id, message, data, acknowledged) VALUES(?, ?, ?, ?, ?, ?)`,
+		ms(e.Time), e.Kind, dev, e.Message, toJSON(e.Data), e.Acknowledged)
 	if err != nil {
 		return err
 	}
