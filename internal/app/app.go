@@ -216,6 +216,9 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 			go alert.Notify("LocalLanView", e.Message)
 		}
 	}
+	if gw, ok := netinfo.Gateway(nw.Iface.Name); ok && nw.InScope(gw) {
+		inv.Gateway = gw
+	}
 	if _, err := st.Setting(ctx, "baseline_done"); errors.Is(err, store.ErrNotFound) {
 		inv.SetBaseline(true)
 	}

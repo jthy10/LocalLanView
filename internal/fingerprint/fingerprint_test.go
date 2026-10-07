@@ -29,6 +29,8 @@ func TestClassify(t *testing.T) {
 		{"camera", Signals{Vendor: "Hangzhou Hikvision Digital Technology Co.,Ltd.", Ports: []int{80, 554}}, "Camera", "high"},
 		{"ssh only", Signals{Ports: []int{22}}, "Server", "low"},
 		{"nothing", Signals{}, "Unknown", "none"},
+		{"private MAC only", Signals{Private: true}, "Unknown", "none"},
+		{"gateway", Signals{Gateway: true, Private: true}, "Router", "high"},
 	}
 	for _, tt := range tests {
 		g := e.Classify(tt.s)

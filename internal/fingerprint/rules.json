@@ -1,4 +1,5 @@
 [
+  {"type": "Router", "weight": 8, "why": "is the default gateway", "gateway": true},
   {"type": "Router", "weight": 6, "why": "advertises an Internet Gateway Device (UPnP)", "ssdp": "InternetGatewayDevice|WANDevice|WANConnectionDevice"},
   {"type": "Router", "weight": 4, "why": "vendor makes routers", "vendor": "netgear|tp-?link|asustek|ubiquiti|mikrotik|routerboard|linksys|arris|technicolor|sagemcom|zyxel|d-link|eero|avm|juniper|cisco|fortinet|draytek|huawei|zte|tenda|commscope|calix|actiontec|plume|nokia solutions|sercomm|humax|vantiva"},
   {"type": "Router", "weight": 3, "why": "DNS and web admin open", "allPorts": [53, 80]},

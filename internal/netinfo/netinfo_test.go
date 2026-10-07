@@ -2,6 +2,7 @@ package netinfo
 
 import (
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +49,18 @@ func TestTooLarge(t *testing.T) {
 	n := &Network{Prefix: netip.MustParsePrefix("10.0.0.0/8")}
 	if n.check() == nil {
 		t.Fatal("a /8 should be rejected")
+	}
+}
+
+func TestParseProcRoute(t *testing.T) {
+	const sample = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\n" +
+		"eth0\t00000000\t0101A8C0\t0003\t0\t0\t0\t00000000\n" +
+		"eth0\t0001A8C0\t00000000\t0001\t0\t0\t0\t00FFFFFF\n"
+	ip, ok := parseProcRoute(strings.NewReader(sample), "eth0")
+	if !ok || ip.String() != "192.168.1.1" {
+		t.Fatalf("got %v %v", ip, ok)
+	}
+	if _, ok := parseProcRoute(strings.NewReader(sample), "wlan0"); ok {
+		t.Fatal("wrong interface matched")
 	}
 }

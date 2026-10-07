@@ -25,6 +25,8 @@ type Inventory struct {
 	OUI   *oui.DB
 	FP    *fingerprint.Engine
 	Log   *slog.Logger
+	// Gateway is the default gateway's address, a strong router signal.
+	Gateway netip.Addr
 
 	// OnEvent is called for alert-worthy events (not during the baseline scan).
 	OnEvent func(store.Event, *store.Device)
@@ -250,6 +252,7 @@ func (inv *Inventory) checkMACChange(ctx context.Context, d *store.Device, prevI
 
 func (inv *Inventory) classify(ctx context.Context, d *store.Device) error {
 	sig := fingerprint.Signals{Vendor: d.Vendor, Private: d.PrivateMAC}
+	sig.Gateway = inv.Gateway.IsValid() && d.IP == inv.Gateway.String()
 	hosts, err := inv.Store.HostnameHistory(ctx, d.ID)
 	if err != nil {
 		return err

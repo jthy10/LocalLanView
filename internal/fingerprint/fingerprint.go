@@ -19,6 +19,7 @@ var rulesJSON []byte
 type Signals struct {
 	Vendor    string
 	Private   bool // randomized MAC
+	Gateway   bool // this is the default gateway
 	Hostnames []string
 	MDNS      []string // service types, e.g. "_googlecast._tcp"
 	MDNSText  []string // TXT values worth matching (model strings etc.)
@@ -49,9 +50,13 @@ type Rule struct {
 	AnyPorts []int    `json:"anyPorts,omitempty"` // at least one open
 	Banner   string   `json:"banner,omitempty"`   // regex over banners
 	Private  *bool    `json:"private,omitempty"`
+	Gateway  *bool    `json:"gateway,omitempty"`
 
 	vendor, hostname, text, ssdp, banner *regexp.Regexp
 }
+
+// minScore is the lowest score that produces a guess.
+const minScore = 3
 
 // Engine holds compiled rules.
 type Engine struct {
@@ -96,7 +101,7 @@ func Load(b []byte) (*Engine, error) {
 			return nil, fmt.Errorf("rule %d (%s): %v", i, r.Why, err)
 		}
 		if r.vendor == nil && r.hostname == nil && r.text == nil && r.ssdp == nil && r.banner == nil &&
-			len(r.MDNS) == 0 && len(r.AllPorts) == 0 && len(r.AnyPorts) == 0 && r.Private == nil {
+			len(r.MDNS) == 0 && len(r.AllPorts) == 0 && len(r.AnyPorts) == 0 && r.Private == nil && r.Gateway == nil {
 			return nil, fmt.Errorf("rule %d (%s) has no conditions", i, r.Why)
 		}
 	}
@@ -129,6 +134,9 @@ func (r *Rule) match(s *Signals, ports map[int]bool, mdns map[string]bool) bool 
 		return false
 	}
 	if r.Private != nil && *r.Private != s.Private {
+		return false
+	}
+	if r.Gateway != nil && *r.Gateway != s.Gateway {
 		return false
 	}
 	if len(r.MDNS) > 0 {
@@ -201,6 +209,10 @@ func (e *Engine) Classify(s Signals) Guess {
 		return ranked[i].t < ranked[j].t
 	})
 	best := ranked[0]
+	// A single weak hint (say, only a randomized MAC) isn't enough to name a type.
+	if best.s < minScore {
+		return Guess{Type: "Unknown", Confidence: "none", Score: best.s, Reasons: reasons[best.t]}
+	}
 	level := 0 // 0 low, 1 medium, 2 high
 	switch {
 	case best.s >= 8:
