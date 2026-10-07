@@ -28,7 +28,7 @@ type Collector struct {
 }
 
 func (c *Collector) Name() string                  { return "SSDP / UPnP" }
-func (c *Collector) Phase() scan.Phase              { return scan.PhaseDiscover }
+func (c *Collector) Phase() scan.Phase             { return scan.PhaseDiscover }
 func (c *Collector) Available(bool) (bool, string) { return true, "" }
 
 type reply struct {
