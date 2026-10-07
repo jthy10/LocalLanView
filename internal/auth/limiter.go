@@ -11,6 +11,7 @@ type LoginLimiter struct {
 	MaxPerIP    int           // failures before an address is locked out
 	MaxGlobal   int           // failures (all addresses) before everyone is locked out
 	LockoutTime time.Duration
+	DelayStep   time.Duration // extra pause per recent failure, after the third
 
 	mu     sync.Mutex
 	ips    map[string]*failRecord
@@ -25,7 +26,7 @@ type failRecord struct {
 
 func NewLoginLimiter() *LoginLimiter {
 	return &LoginLimiter{
-		Window: 15 * time.Minute, MaxPerIP: 10, MaxGlobal: 50, LockoutTime: 15 * time.Minute,
+		Window: 15 * time.Minute, MaxPerIP: 10, MaxGlobal: 50, LockoutTime: 15 * time.Minute, DelayStep: 250 * time.Millisecond,
 		ips: map[string]*failRecord{}, now: time.Now,
 	}
 }
@@ -54,7 +55,7 @@ func (l *LoginLimiter) Delay(ip string) time.Duration {
 	if r == nil || len(r.times) < 3 {
 		return 0
 	}
-	return time.Duration(len(r.times)) * 250 * time.Millisecond
+	return time.Duration(len(r.times)) * l.DelayStep
 }
 
 // Fail records a failed attempt.
