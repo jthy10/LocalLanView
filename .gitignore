@@ -1,0 +1,9 @@
+/dist/
+/data/
+*.db
+*.db-*
+*.exe
+/LocalLanView
+.DS_Store
+.idea/
+.vscode/
