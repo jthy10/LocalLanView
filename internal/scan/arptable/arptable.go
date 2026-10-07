@@ -24,8 +24,8 @@ type Entry struct {
 // one; that's how live hosts get into the table without raw sockets.
 type Collector struct {
 	Prime bool
-	// read is swapped out in tests.
-	read func() ([]Entry, error)
+	// Source replaces the OS table (tests, imported captures).
+	Source func() ([]Entry, error)
 }
 
 func (c *Collector) Name() string      { return "ARP table" }
@@ -47,7 +47,7 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 		case <-time.After(2 * time.Second): // give ARP replies time to land
 		}
 	}
-	read := c.read
+	read := c.Source
 	if read == nil {
 		read = Read
 	}

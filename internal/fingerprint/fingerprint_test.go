@@ -29,6 +29,7 @@ func TestClassify(t *testing.T) {
 		{"camera", Signals{Vendor: "Hangzhou Hikvision Digital Technology Co.,Ltd.", Ports: []int{80, 554}}, "Camera", "high"},
 		{"ssh only", Signals{Ports: []int{22}}, "Server", "low"},
 		{"nothing", Signals{}, "Unknown", "none"},
+		{"netbios pc", Signals{Vendor: "Micro-Star INTL CO., LTD.", Sources: []string{"arp", "netbios"}, Hostnames: []string{"GAMING-PC"}}, "Windows PC", "medium"},
 		{"private MAC only", Signals{Private: true}, "Unknown", "none"},
 		{"gateway", Signals{Gateway: true, Private: true}, "Router", "high"},
 	}

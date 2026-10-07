@@ -18,8 +18,9 @@ var rulesJSON []byte
 // Signals is everything known about one device.
 type Signals struct {
 	Vendor    string
-	Private   bool // randomized MAC
-	Gateway   bool // this is the default gateway
+	Private   bool     // randomized MAC
+	Gateway   bool     // this is the default gateway
+	Sources   []string // discovery protocols that found it (arp, mdns, netbios...)
 	Hostnames []string
 	MDNS      []string // service types, e.g. "_googlecast._tcp"
 	MDNSText  []string // TXT values worth matching (model strings etc.)
@@ -51,6 +52,7 @@ type Rule struct {
 	Banner   string   `json:"banner,omitempty"`   // regex over banners
 	Private  *bool    `json:"private,omitempty"`
 	Gateway  *bool    `json:"gateway,omitempty"`
+	Source   []string `json:"source,omitempty"` // found by any of these protocols
 
 	vendor, hostname, text, ssdp, banner *regexp.Regexp
 }
@@ -101,7 +103,7 @@ func Load(b []byte) (*Engine, error) {
 			return nil, fmt.Errorf("rule %d (%s): %v", i, r.Why, err)
 		}
 		if r.vendor == nil && r.hostname == nil && r.text == nil && r.ssdp == nil && r.banner == nil &&
-			len(r.MDNS) == 0 && len(r.AllPorts) == 0 && len(r.AnyPorts) == 0 && r.Private == nil && r.Gateway == nil {
+			len(r.MDNS) == 0 && len(r.AllPorts) == 0 && len(r.AnyPorts) == 0 && r.Private == nil && r.Gateway == nil && len(r.Source) == 0 {
 			return nil, fmt.Errorf("rule %d (%s) has no conditions", i, r.Why)
 		}
 	}
@@ -137,6 +139,9 @@ func (r *Rule) match(s *Signals, ports map[int]bool, mdns map[string]bool) bool 
 		return false
 	}
 	if r.Gateway != nil && *r.Gateway != s.Gateway {
+		return false
+	}
+	if len(r.Source) > 0 && !overlap(r.Source, s.Sources) {
 		return false
 	}
 	if len(r.MDNS) > 0 {
@@ -230,4 +235,15 @@ func (e *Engine) Classify(s Signals) Guess {
 		Score:      best.s,
 		Reasons:    reasons[best.t],
 	}
+}
+
+func overlap(a, b []string) bool {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				return true
+			}
+		}
+	}
+	return false
 }

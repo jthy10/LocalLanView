@@ -53,7 +53,7 @@ func TestRunFilters(t *testing.T) {
 		IP:     netip.MustParseAddr("192.168.1.10"),
 		Prefix: netip.MustParsePrefix("192.168.1.0/24"),
 	}}
-	c := &Collector{read: func() ([]Entry, error) { return parseProcNetARP(strings.NewReader(procSample)), nil }}
+	c := &Collector{Source: func() ([]Entry, error) { return parseProcNetARP(strings.NewReader(procSample)), nil }}
 	var got []scan.Observation
 	if err := c.Run(context.Background(), env, func(o scan.Observation) { got = append(got, o) }); err != nil {
 		t.Fatal(err)

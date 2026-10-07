@@ -47,6 +47,7 @@ func (c *Collector) Available(bool) (bool, string) { return true, "" }
 
 type instance struct {
 	typ, name, host string
+	hostLabel       string // host as advertised, for display
 	port            int
 	txt             map[string]string
 	from            netip.Addr
@@ -185,6 +186,7 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 		case *dnsmessage.SRVResource:
 			in := st.inst(rawName, src)
 			in.host = strings.ToLower(b.Target.String())
+			in.hostLabel = b.Target.String()
 			in.port = int(b.Port)
 		case *dnsmessage.TXTResource:
 			in := st.inst(rawName, src)
@@ -205,7 +207,7 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 			ip := netip.AddrFrom4(b.A)
 			st.hostIPs[name] = ip
 			if _, ok := st.ipNames[ip]; !ok {
-				st.ipNames[ip] = trimLocal(name)
+				st.ipNames[ip] = trimLocal(rawName)
 			}
 		}
 	}
@@ -255,8 +257,8 @@ func (st *state) observations(env *scan.Env) []scan.Observation {
 			svc.Info = in.txt
 		}
 		o.Services = append(o.Services, svc)
-		if o.Hostname == "" && in.host != "" {
-			o.Hostname = trimLocal(in.host)
+		if o.Hostname == "" && in.hostLabel != "" {
+			o.Hostname = trimLocal(in.hostLabel)
 		}
 	}
 	for ip, name := range st.ipNames {

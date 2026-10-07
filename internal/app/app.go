@@ -198,7 +198,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 			return err
 		}
 	}
-	inv := &inventory.Inventory{Store: st, OUI: oui.Default(), FP: fingerprint.Default(), Log: log}
+	inv := &inventory.Inventory{Store: st, OUI: oui.Default(), FP: fingerprint.Default(), Log: log, Self: nw.IP}
 	inv.OnChange = func(id int64) { hub.Publish(alert.Message{Type: "device", Data: map[string]int64{"id": id}}) }
 	inv.OnEvent = func(e store.Event, d *store.Device) {
 		hub.Publish(alert.Message{Type: "event", Data: e})

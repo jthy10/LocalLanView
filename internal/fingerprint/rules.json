@@ -27,6 +27,8 @@
   {"type": "Windows PC", "weight": 4, "why": "Remote Desktop open", "anyPorts": [3389]},
   {"type": "Windows PC", "weight": 4, "why": "Windows-style hostname", "hostname": "^(desktop|laptop|win|pc)-[a-z0-9]{4,}"},
   {"type": "Windows PC", "weight": 2, "why": "Web Services for Devices (WSD) open", "anyPorts": [5357]},
+  {"type": "Windows PC", "weight": 3, "why": "answers NetBIOS/LLMNR name queries (Windows or Samba)", "source": ["netbios", "llmnr"]},
+  {"type": "Windows PC", "weight": 4, "why": "Windows service banner", "banner": "openssh_for_windows|microsoft-(iis|httpapi)|windows"},
   {"type": "Windows PC", "weight": 2, "why": "PC vendor", "vendor": "dell|lenovo|micro-star|msi|gigabyte|asrock|acer|hewlett packard|intel corporate|realtek|liteon|azurewave|framework"},
 
   {"type": "Mac", "weight": 5, "why": "macOS-style hostname", "hostname": "(macbook|imac|mac-?mini|mac-?pro|mac-?studio)"},
@@ -53,7 +55,7 @@
   {"type": "Streaming Device", "weight": 7, "why": "advertises Google Cast", "mdns": ["_googlecast._tcp"]},
   {"type": "Streaming Device", "weight": 4, "why": "Cast ports open", "allPorts": [8008, 8009]},
   {"type": "Streaming Device", "weight": 4, "why": "Apple TV / AirPlay receiver", "mdns": ["_airplay._tcp"], "text": "^appletv"},
-  {"type": "Streaming Device", "weight": 6, "why": "Roku / Fire TV", "text": "\\b(roku|fire ?tv|aft[a-z]+|chromecast)\\b"},
+  {"type": "Streaming Device", "weight": 6, "why": "streaming stick model (Chromecast, Roku, Fire TV)", "text": "\\b(roku|fire ?tv|aft[a-z]+|chromecast)\\b"},
   {"type": "Streaming Device", "weight": 4, "why": "Amazon whisperplay", "mdns": ["_amzn-wplay._tcp"]},
   {"type": "Streaming Device", "weight": 3, "why": "game streaming host", "mdns": ["_nvstream._tcp"]},
 

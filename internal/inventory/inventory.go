@@ -27,6 +27,8 @@ type Inventory struct {
 	Log   *slog.Logger
 	// Gateway is the default gateway's address, a strong router signal.
 	Gateway netip.Addr
+	// Self is this machine's address; observations of it are ignored.
+	Self netip.Addr
 
 	// OnEvent is called for alert-worthy events (not during the baseline scan).
 	OnEvent func(store.Event, *store.Device)
@@ -53,7 +55,7 @@ const macChangeWindow = 10 * time.Minute
 
 // Observe applies one observation.
 func (inv *Inventory) Observe(o scan.Observation) {
-	if !o.IP.IsValid() {
+	if !o.IP.IsValid() || o.IP.Unmap() == inv.Self {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -253,6 +255,7 @@ func (inv *Inventory) checkMACChange(ctx context.Context, d *store.Device, prevI
 func (inv *Inventory) classify(ctx context.Context, d *store.Device) error {
 	sig := fingerprint.Signals{Vendor: d.Vendor, Private: d.PrivateMAC}
 	sig.Gateway = inv.Gateway.IsValid() && d.IP == inv.Gateway.String()
+	sig.Sources = d.Sources
 	hosts, err := inv.Store.HostnameHistory(ctx, d.ID)
 	if err != nil {
 		return err
