@@ -9,13 +9,13 @@ const DEVELOPER = {
   links: [
     { icon: "github", text: "GitHub", href: "https://github.com/jthy10" },
     { icon: "globe", text: "jrtiv.com", href: "https://jrtiv.com" },
-    { icon: "linkedin", text: "LinkedIn", href: "" },
+    { icon: "linkedin", text: "LinkedIn", href: "https://www.linkedin.com/in/jakethygeson" },
   ],
 };
 
 const ABOUT = [
-  "LocalLanView is a simple network scanner for home and small office networks. It shows what's connected, what each device probably is, and lets you know when something new shows up.",
-  "It was made to give a clear picture of your own network without accounts, cloud services or telemetry. Everything runs on this machine and stays here.",
+  "LocalLanView is a simple tool for seeing what's on your home network. It finds the devices on your network, tells you what they are, and flags anything new.",
+  "It was built to be a lightweight alternative to bloated network scanners. It runs entirely on your own machine, stores everything locally, and never sends data anywhere.",
 ];
 
 const ext = (href, kids, cls) => h("a", { class: cls, href, target: "_blank", rel: "noopener noreferrer" }, kids);
@@ -31,9 +31,10 @@ export function render(view) {
       h("section", { class: "panel about-hero" },
         icon("logo", "about-mark"),
         h("div", { class: "t" },
-          h("h2", {}, "LocalLanView"),
+          h("h2", {}, "About LocalLanView"),
           h("div", { class: "muted" }, "Version ", h("span", { class: "mono" }, version))),
-        h("div", { class: "about-copy" }, ABOUT.map((p) => h("p", {}, p))),
+        h("div", { class: "about-copy" }, ABOUT.map((p) => h("p", {}, p)),
+          h("p", { class: "about-note" }, icon("shield"), "Only scan networks you own or are authorized to manage.")),
       ),
       h("div", { class: "cols even" },
         h("section", { class: "panel" },
