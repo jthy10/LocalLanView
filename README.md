@@ -31,6 +31,15 @@ Download a binary from Releases, or build it (below), then:
 It opens `http://127.0.0.1:8787`. The first run prints a random password
 once. Log in as `admin` and change it under Settings.
 
+**Windows:** the exe isn't code-signed, so SmartScreen will say "Windows
+protected your PC". Click **More info**, then **Run anyway**. Check the
+file against `SHA256SUMS` first if you want to be sure it's the real one:
+`Get-FileHash .\LocalLanView-*.exe`.
+
+**macOS:** same story with Gatekeeper. Run
+`xattr -d com.apple.quarantine ./LocalLanView-*` once, or right-click the
+file and choose Open.
+
 ## Privileges
 
 | `-mode` | Behavior |

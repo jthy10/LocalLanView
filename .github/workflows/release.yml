@@ -18,16 +18,30 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+      # Re-running for a version that's already out only refreshes its notes.
+      - name: Check for an existing release
+        id: existing
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update release notes
+        if: steps.existing.outputs.found == 'true'
+        run: gh release edit "$VERSION" --notes-file .github/release-notes.md
       - uses: actions/setup-go@v5
+        if: steps.existing.outputs.found != 'true'
         with:
           go-version-file: go.mod
-      - run: go test ./...
-      - run: make dist VERSION=$VERSION
+      - if: steps.existing.outputs.found != 'true'
+        run: go test ./...
+      - if: steps.existing.outputs.found != 'true'
+        run: make dist VERSION=$VERSION
       - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: steps.existing.outputs.found != 'true'
         run: |
           gh release create "$VERSION" dist/* \
             --target "$GITHUB_SHA" \
