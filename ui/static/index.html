@@ -5,39 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>LocalLanView</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css">
-<script src="app.js" type="module"></script>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/main.js" type="module"></script>
 </head>
 <body>
-<div id="app" class="app">
-  <header class="topbar" id="topbar" hidden>
-    <a class="brand" href="#/">
-      <svg class="logo" aria-hidden="true"><use href="icons.svg#logo"></use></svg>
-      <span>LocalLanView</span>
-    </a>
-    <nav class="nav" aria-label="Main">
-      <a href="#/" data-nav="devices">Devices</a>
-      <a href="#/alerts" data-nav="alerts">Alerts <span class="badge" id="alert-badge" hidden>0</span></a>
-      <a href="#/status" data-nav="status">Status</a>
-      <a href="#/settings" data-nav="settings">Settings</a>
-    </nav>
-    <div class="topbar-right">
-      <span class="scan-state" id="scan-state"></span>
-      <button class="btn btn-primary" id="scan-btn" type="button">
-        <svg aria-hidden="true"><use href="icons.svg#refresh"></use></svg><span>Scan now</span>
-      </button>
-      <button class="icon-btn" id="theme-btn" type="button" title="Toggle theme" aria-label="Toggle theme">
-        <svg aria-hidden="true"><use href="icons.svg#contrast"></use></svg>
-      </button>
-      <button class="icon-btn" id="logout-btn" type="button" title="Log out" aria-label="Log out">
-        <svg aria-hidden="true"><use href="icons.svg#logout"></use></svg>
-      </button>
-    </div>
-  </header>
-  <div id="banner" class="banner" hidden></div>
-  <main id="view" class="view"></main>
-  <div id="toasts" class="toasts" aria-live="polite"></div>
-</div>
+<div id="root"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 </body>
 </html>

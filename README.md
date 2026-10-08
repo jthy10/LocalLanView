@@ -57,7 +57,7 @@ sudo setcap cap_net_raw+ep ./LocalLanView
 ```
 
 When started with `sudo`, it drops back to your user after opening its
-sockets. The Status page shows which features are on and why.
+sockets. The Capabilities page shows which features are on and why.
 
 ## Options
 
