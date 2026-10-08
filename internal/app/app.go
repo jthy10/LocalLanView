@@ -216,8 +216,10 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 			go alert.Notify("LocalLanView", e.Message)
 		}
 	}
+	gateway := ""
 	if gw, ok := netinfo.Gateway(nw.Iface.Name); ok && nw.InScope(gw) {
 		inv.Gateway = gw
+		gateway = gw.String()
 	}
 	if _, err := st.Setting(ctx, "baseline_done"); errors.Is(err, store.ErrNotFound) {
 		inv.SetBaseline(true)
@@ -294,7 +296,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		genMu.Unlock()
 		return map[string]any{
 			"version":           opt.Version,
-			"network":           map[string]string{"interface": nw.Iface.Name, "ip": nw.IP.String(), "subnet": nw.Prefix.String(), "mac": nw.Iface.HardwareAddr.String()},
+			"network":           map[string]string{"interface": nw.Iface.Name, "ip": nw.IP.String(), "subnet": nw.Prefix.String(), "mac": nw.Iface.HardwareAddr.String(), "gateway": gateway},
 			"privilege":         priv,
 			"features":          engine.Features(),
 			"scan":              ss.snapshot(),
@@ -404,7 +406,7 @@ func printBanner(w io.Writer, url string, cfg *config.Config, cr *credResult, pr
 		}
 	}
 	if len(off) > 0 {
-		fmt.Fprintf(w, "  Inactive:   %v (see the Status page for why)\n", off)
+		fmt.Fprintf(w, "  Inactive:   %v (see the Capabilities page for why)\n", off)
 	}
 	switch {
 	case cr.Generated != "":
