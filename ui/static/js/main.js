@@ -7,9 +7,10 @@ import * as device from "./views/device.js";
 import * as alerts from "./views/alerts.js";
 import * as status from "./views/status.js";
 import * as settings from "./views/settings.js";
+import * as about from "./views/about.js";
 import { renderLogin } from "./views/login.js";
 
-const ROUTES = { overview, devices, device, alerts, status, settings };
+const ROUTES = { overview, devices, device, alerts, status, settings, about };
 
 /* ---------- theme ---------- */
 
@@ -58,7 +59,8 @@ function buildShell() {
       h("div", { class: "nav-label" }, "System"),
       h("nav", { class: "nav" },
         navLink("status", "radar", "Capabilities"),
-        navLink("settings", "gear", "Settings")),
+        navLink("settings", "gear", "Settings"),
+        navLink("about", "info", "About")),
       h("div", { class: "side-foot" },
         netcard,
         h("div", { class: "side-actions" },

@@ -692,3 +692,18 @@ a.kpi { color: var(--text); }
   .cell-name { max-width: 190px; }
   .shell.nav-open .scrim { background: rgba(0, 0, 0, .5); }
 }
+
+/* ---------- about ---------- */
+
+.about-page { display: flex; flex-direction: column; gap: 12px; max-width: 960px; }
+.about-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: center; padding: 20px; }
+.about-mark { width: 52px; height: 52px; color: var(--accent); }
+.about-hero h2 { font-size: 18px; letter-spacing: -.01em; }
+.about-copy { grid-column: 1 / -1; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 14px; line-height: 1.6; }
+.about-copy p { max-width: 72ch; }
+.about-copy p + p { margin-top: 10px; }
+.dev { display: flex; align-items: center; gap: 14px; }
+.avatar.lg { width: 44px; height: 44px; font-size: 15px; }
+.dev-name { font-size: 15px; font-weight: 600; }
+.dev-links { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 16px; }
+.dev-links .btn svg.ext { width: 12px; height: 12px; color: var(--faint); }
