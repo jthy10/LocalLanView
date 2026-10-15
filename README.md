@@ -102,7 +102,8 @@ LAN access is off by default. To turn it on, set your own password first
 - start it with `-lan`.
 
 The console restarts on every network interface, on the same port, over
-HTTPS with a self-signed certificate (browsers warn about it once). The
+HTTPS with a self-signed certificate (browsers warn about it once). Typing
+the address without `https://` works too; you're sent to the HTTPS page. The
 address to use, such as `https://192.168.1.50:8787`, is shown under
 Settings, in the sidebar's Network card and in the terminal. The choice is
 remembered across restarts; untick the box or run with `-lan=false` to go
