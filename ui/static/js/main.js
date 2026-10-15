@@ -45,7 +45,7 @@ function navLink(route, ic, text, extra) {
 function buildShell() {
   const count = h("span", { class: "count", id: "alert-count", hidden: true });
   const netcard = h("div", { class: "netcard", id: "netcard" });
-  const scanBtn = h("button", { class: "btn btn-primary", id: "scan-btn", type: "button", onclick: startScan },
+  const scanBtn = h("button", { class: "btn btn-primary", id: "scan-btn", type: "button", "aria-label": "Scan now", onclick: startScan },
     icon("refresh"), h("span", { class: "hide-sm" }, "Scan now"));
   const root = h("div", { class: "shell", id: "shell" },
     h("a", { class: "skip-link", href: "#view", onclick: (e) => { e.preventDefault(); $("#view").focus(); } }, "Skip to content"),
