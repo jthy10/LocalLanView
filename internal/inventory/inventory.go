@@ -34,9 +34,28 @@ type Inventory struct {
 	OnEvent func(store.Event, *store.Device)
 	// OnChange is called after any device is updated.
 	OnChange func(deviceID int64)
+	// LiveWindow is how recently a device must have been seen to count as
+	// online (default 11 minutes).
+	LiveWindow time.Duration
 
 	mu       sync.Mutex
 	baseline bool
+	// pending holds IP-only devices whose "new device" alert waits until
+	// the end of the cycle, in case a MAC shows up that says it's a device
+	// we already know under a new address.
+	pending map[int64]pendingNew
+}
+
+type pendingNew struct {
+	time     time.Time
+	baseline bool
+}
+
+func (inv *Inventory) liveWindow() time.Duration {
+	if inv.LiveWindow > 0 {
+		return inv.LiveWindow
+	}
+	return 11 * time.Minute
 }
 
 // SetBaseline marks the first ever scan: devices are recorded but no "new
@@ -45,6 +64,25 @@ func (inv *Inventory) SetBaseline(b bool) {
 	inv.mu.Lock()
 	inv.baseline = b
 	inv.mu.Unlock()
+}
+
+// FlushPending raises the held-back "new device" alerts for IP-only
+// devices that are still unidentified. Call it at the end of each cycle.
+func (inv *Inventory) FlushPending() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+	for id, p := range inv.pending {
+		delete(inv.pending, id)
+		d, err := inv.Store.Device(ctx, id)
+		if err != nil || d.MAC != "" {
+			continue // merged away or identified since
+		}
+		if err := inv.raise(ctx, d, []store.Event{newDeviceEvent(d)}, p.time, p.baseline); err != nil && inv.Log != nil {
+			inv.Log.Error("raising new device alert", "ip", d.IP, "err", err)
+		}
+	}
 }
 
 // hostnameRank decides which source's name wins.
@@ -146,24 +184,44 @@ func (inv *Inventory) apply(ctx context.Context, o scan.Observation) (int64, err
 	}
 
 	if isNew {
-		msg := "New device: " + Label(d)
-		if d.IP != "" && Label(d) != d.IP {
-			msg += " (" + d.IP + ")"
+		if d.MAC == "" {
+			// Could be a known device on a new address whose MAC we haven't
+			// read yet; wait for the end of the cycle before calling it new.
+			if inv.pending == nil {
+				inv.pending = map[int64]pendingNew{}
+			}
+			inv.pending[d.ID] = pendingNew{time: o.Time, baseline: inv.baseline}
+		} else {
+			events = append([]store.Event{newDeviceEvent(d)}, events...)
 		}
-		events = append([]store.Event{{Kind: store.EventNewDevice, Message: msg}}, events...)
 	}
+	if err := inv.raise(ctx, d, events, o.Time, inv.baseline); err != nil {
+		return 0, err
+	}
+	return d.ID, nil
+}
+
+func newDeviceEvent(d *store.Device) store.Event {
+	msg := "New device: " + Label(d)
+	if d.IP != "" && Label(d) != d.IP {
+		msg += " (" + d.IP + ")"
+	}
+	return store.Event{Kind: store.EventNewDevice, Message: msg}
+}
+
+func (inv *Inventory) raise(ctx context.Context, d *store.Device, events []store.Event, t time.Time, baseline bool) error {
 	for _, e := range events {
-		e.Time = o.Time
+		e.Time = t
 		e.DeviceID = d.ID
-		e.Acknowledged = inv.baseline
+		e.Acknowledged = baseline
 		if err := inv.Store.AddEvent(ctx, &e); err != nil {
-			return 0, err
+			return err
 		}
-		if !inv.baseline && inv.OnEvent != nil {
+		if !baseline && inv.OnEvent != nil {
 			inv.OnEvent(e, d)
 		}
 	}
-	return d.ID, nil
+	return nil
 }
 
 // resolve finds or creates the device an observation belongs to. Devices
@@ -188,11 +246,17 @@ func (inv *Inventory) resolve(ctx context.Context, o scan.Observation, ip string
 		}
 		switch {
 		case d == nil && ipDev != nil:
-			// First time we learn this device's MAC: promote it.
+			// First time we learn this device's MAC: promote it. If its
+			// "new device" alert was held back, it's due now.
 			d = ipDev
 			d.Key, d.MAC = key, mac
-			prevIP = ip
+			if _, ok := inv.pending[d.ID]; ok {
+				delete(inv.pending, d.ID)
+				isNew = true
+			}
 		case d != nil && ipDev != nil:
+			// A known device on a new address: not new after all.
+			delete(inv.pending, ipDev.ID)
 			if err := inv.Store.MergeInto(ctx, ipDev.ID, d.ID); err != nil {
 				return nil, false, err
 			}
@@ -217,8 +281,14 @@ func (inv *Inventory) resolve(ctx context.Context, o scan.Observation, ip string
 	if err != nil {
 		return nil, false, err
 	}
-	if len(others) > 0 {
-		return others[0], false, nil
+	// An IP-only sighting belongs to the device holding that address now.
+	// A device that's been gone a while may have lost the address to a
+	// newcomer, so don't revive it: that's what made a recycled DHCP lease
+	// look like ARP spoofing. Its MAC will turn up and merge if it's back.
+	for _, d := range others {
+		if d.MAC == "" || o.Time.Sub(d.LastSeen) <= inv.liveWindow() {
+			return d, false, nil
+		}
 	}
 	nd := &store.Device{Key: ipKey, IP: ip, FirstSeen: o.Time, LastSeen: o.Time}
 	if _, err := inv.Store.InsertDevice(ctx, nd); err != nil {

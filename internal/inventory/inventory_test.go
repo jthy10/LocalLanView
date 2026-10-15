@@ -144,3 +144,110 @@ func MustMAC(s string) net.HardwareAddr {
 	}
 	return m
 }
+
+func kinds(events []store.Event) []string {
+	var out []string
+	for _, e := range events {
+		out = append(out, e.Kind)
+	}
+	return out
+}
+
+// DHCP hands a long-gone device's address to a new phone. ICMP sees the
+// address before ARP names the MAC.
+func TestRecycledIPIsNotSpoofing(t *testing.T) {
+	inv, events := newInv(t)
+	ctx := context.Background()
+	now := time.Now()
+	old := MustMAC("00:11:22:00:00:0a")
+	inv.Observe(scan.Observation{Source: "arp", Time: now.Add(-48 * time.Hour), IP: ip("10.0.0.20"), MAC: old})
+	*events = nil
+
+	inv.Observe(scan.Observation{Source: "icmp", Time: now, IP: ip("10.0.0.20")})
+	inv.Observe(scan.Observation{Source: "arp", Time: now.Add(2 * time.Second), IP: ip("10.0.0.20"), MAC: MustMAC("00:11:22:00:00:0b")})
+	inv.FlushPending()
+
+	if k := kinds(*events); len(k) != 1 || k[0] != store.EventNewDevice {
+		t.Fatalf("want one new-device alert and no MAC change, got %+v", *events)
+	}
+	d, _ := inv.Store.DeviceByKey(ctx, "mac:"+old.String())
+	if now.Sub(d.LastSeen) < 47*time.Hour {
+		t.Fatalf("the departed device was revived: last seen %v", d.LastSeen)
+	}
+}
+
+// A known device gets a new lease and ICMP sees the new address first.
+func TestKnownDeviceNewIPIsNotNew(t *testing.T) {
+	inv, events := newInv(t)
+	ctx := context.Background()
+	now := time.Now()
+	mac := MustMAC("00:11:22:00:00:0c")
+	inv.Observe(scan.Observation{Source: "arp", Time: now.Add(-time.Hour), IP: ip("10.0.0.30"), MAC: mac})
+	*events = nil
+
+	inv.Observe(scan.Observation{Source: "icmp", Time: now, IP: ip("10.0.0.31")})
+	inv.Observe(scan.Observation{Source: "arp", Time: now.Add(2 * time.Second), IP: ip("10.0.0.31"), MAC: mac})
+	inv.FlushPending()
+
+	for _, e := range *events {
+		if e.Kind == store.EventNewDevice {
+			t.Fatalf("known device on a new IP raised %+v", e)
+		}
+	}
+	ds, _ := inv.Store.Devices(ctx)
+	if len(ds) != 1 || ds[0].IP != "10.0.0.31" {
+		t.Fatalf("devices %+v", ds)
+	}
+}
+
+// A device only ever seen by IP still gets its alert, at the end of the cycle.
+func TestIPOnlyDeviceAlertsAtCycleEnd(t *testing.T) {
+	inv, events := newInv(t)
+	inv.Observe(scan.Observation{Source: "icmp", IP: ip("10.0.0.40")})
+	if len(*events) != 0 {
+		t.Fatalf("alert should wait for the cycle to end, got %+v", *events)
+	}
+	inv.FlushPending()
+	if k := kinds(*events); len(k) != 1 || k[0] != store.EventNewDevice {
+		t.Fatalf("events %+v", *events)
+	}
+	inv.FlushPending()
+	if len(*events) != 1 {
+		t.Fatalf("alert raised twice: %+v", *events)
+	}
+}
+
+// A device that turns up during the baseline scan by IP alone stays quiet.
+func TestPendingRespectsBaseline(t *testing.T) {
+	inv, events := newInv(t)
+	inv.SetBaseline(true)
+	inv.Observe(scan.Observation{Source: "icmp", IP: ip("10.0.0.41")})
+	inv.FlushPending()
+	inv.SetBaseline(false)
+	if len(*events) != 0 {
+		t.Fatalf("baseline device alerted: %+v", *events)
+	}
+	if n, _ := inv.Store.UnacknowledgedCount(context.Background()); n != 0 {
+		t.Fatal("baseline event should be pre-acknowledged")
+	}
+}
+
+// Another MAC answering for a live device's address is still flagged,
+// even if the impostor was first seen by IP.
+func TestSpoofOfLiveDeviceStillAlerts(t *testing.T) {
+	inv, events := newInv(t)
+	now := time.Now()
+	inv.Observe(scan.Observation{Source: "arp", Time: now.Add(-time.Minute), IP: ip("10.0.0.1"), MAC: MustMAC("00:11:22:00:00:01")})
+	*events = nil
+	inv.Observe(scan.Observation{Source: "icmp", Time: now, IP: ip("10.0.0.1")})
+	inv.Observe(scan.Observation{Source: "arp", Time: now, IP: ip("10.0.0.1"), MAC: MustMAC("00:11:22:00:00:66")})
+	found := false
+	for _, e := range *events {
+		if e.Kind == store.EventMACChanged && e.Data["oldMac"] == "00:11:22:00:00:01" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected MAC change event, got %+v", *events)
+	}
+}

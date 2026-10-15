@@ -231,6 +231,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	}
 
 	liveWindow := 2*cfg.ScanInterval + time.Minute
+	inv.LiveWindow = liveWindow
 	env := &scan.Env{
 		Net:       nw,
 		Limiter:   scan.NewLimiter(cfg.ProbeRate),
@@ -266,6 +267,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		}
 		ss.mu.Unlock()
 		if !running {
+			inv.FlushPending()
 			inv.SetBaseline(false)
 			st.SetSetting(context.Background(), "baseline_done", "1")
 		}
