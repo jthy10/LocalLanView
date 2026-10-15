@@ -13,6 +13,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -43,11 +44,22 @@ const (
 	pcIP      = "127.0.0.4"
 )
 
+// skipNoLoopback skips when the fake devices' addresses can't be bound,
+// unless LOCALLANVIEW_REQUIRE_LOOPBACK is set (as in CI), where a silent
+// skip would hide that the test never ran.
+func skipNoLoopback(t *testing.T, msg string) {
+	t.Helper()
+	if os.Getenv("LOCALLANVIEW_REQUIRE_LOOPBACK") != "" {
+		t.Fatal(msg)
+	}
+	t.Skip(msg)
+}
+
 func udp(t *testing.T, ip string, port int) *net.UDPConn {
 	t.Helper()
 	c, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.ParseIP(ip), Port: port})
 	if err != nil {
-		t.Skipf("can't bind %s on this OS (needs the whole 127.0.0.0/8 on loopback): %v", ip, err)
+		skipNoLoopback(t, fmt.Sprintf("can't bind %s on this OS (needs the whole 127.0.0.0/8 on loopback): %v", ip, err))
 	}
 	t.Cleanup(func() { c.Close() })
 	return c
@@ -102,7 +114,7 @@ func fakeMDNS(t *testing.T) string {
 func fakeSSDP(t *testing.T) string {
 	ln, err := net.Listen("tcp4", castIP+":0")
 	if err != nil {
-		t.Skip(err)
+		skipNoLoopback(t, err.Error())
 	}
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `<root><device><deviceType>urn:dial-multiscreen-org:device:dial:1</deviceType>`+
@@ -150,7 +162,7 @@ func fakeNetBIOS(t *testing.T) int {
 func fakeSSH(t *testing.T) int {
 	ln, err := net.Listen("tcp4", pcIP+":0")
 	if err != nil {
-		t.Skip(err)
+		skipNoLoopback(t, err.Error())
 	}
 	t.Cleanup(func() { ln.Close() })
 	go func() {
