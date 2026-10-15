@@ -19,6 +19,7 @@ type Config struct {
 	PasswordFile  string
 	SetPassword   bool
 	Mode          string
+	RunAs         string
 	DataDir       string
 	ScanInterval  time.Duration
 	Interface     string
@@ -66,6 +67,7 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 	fs.StringVar(&c.PasswordFile, "password-file", "", "read the console password from this file")
 	fs.BoolVar(&c.SetPassword, "set-password", false, "set the console password (from -password-file, LOCALLANVIEW_PASSWORD, or a prompt) and continue")
 	fs.StringVar(&c.Mode, "mode", "auto", "privilege mode: auto, std or elv")
+	fs.StringVar(&c.RunAs, "run-as", "", "when started as root without sudo, switch to this account after opening raw sockets")
 	fs.StringVar(&c.DataDir, "data-dir", "", "where the database and config live (default: per-user config dir)")
 	fs.DurationVar(&c.ScanInterval, "scan-interval", 5*time.Minute, "time between active scans")
 	fs.StringVar(&c.Interface, "interface", "", "network interface to scan from (default: auto-detect)")

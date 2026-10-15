@@ -96,6 +96,10 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	if err != nil {
 		return err
 	}
+	target, dropping, err := privilege.DropTarget(cfg.RunAs)
+	if err != nil {
+		return err
+	}
 
 	// 2. Network segment.
 	nw := opt.Network
@@ -115,7 +119,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	// 4. Data directory and database.
 	dataDir, defaultDir := cfg.DataDir, cfg.DataDir == ""
 	if defaultDir {
-		if dataDir, err = defaultDataDir(); err != nil {
+		if dataDir, err = defaultDataDir(target, dropping); err != nil {
 			return fmt.Errorf("finding a data directory: %w (use -data-dir)", err)
 		}
 	}
@@ -186,15 +190,18 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	}
 	defer ln.Close()
 
-	// 9. Drop root if we came in through sudo; sockets stay usable.
-	if uid, gid, ok := privilege.SudoUser(); ok {
-		handBack(dataDir, createdDirs, defaultDir, uid, gid)
-		if dropped, err := privilege.DropSudo(); err != nil {
+	// 9. Drop root now that the sockets are open; they stay usable.
+	if dropping {
+		handBack(dataDir, createdDirs, defaultDir, target.UID, target.GID)
+		if err := privilege.DropTo(target); err != nil {
 			// Carrying on would run every network parser as root.
 			return fmt.Errorf("could not drop root privileges: %w", err)
-		} else if dropped {
-			log.Info("dropped root privileges", "uid", uid)
 		}
+		log.Info("dropped root privileges", "user", target.Name, "uid", target.UID, "via", target.Via)
+	} else if privilege.IsRoot() {
+		msg := "Running as root with no account to drop to, so every network parser runs as root. Start it with sudo, add -run-as USER, or use setcap on Linux."
+		warnings = append(warnings, msg)
+		fmt.Fprintln(opt.Stderr, "WARNING: "+msg)
 	}
 
 	// 10. Inventory, alerts, scanning.

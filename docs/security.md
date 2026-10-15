@@ -16,7 +16,7 @@ runs, and when it's around. Treat its database and console accordingly.
 | XSS through device names, banners, TXT records | The UI never uses `innerHTML` for data. Strict CSP: `script-src 'self'`, no inline script or style. |
 | Formula injection in CSV export | Cells starting with `= + - @` are prefixed with `'`. |
 | Other local users reading the database | Data dir is `0700`, files `0600`, process umask `077` (Unix). On Windows it lives in the user's profile. |
-| Running as root longer than needed | Raw sockets are opened first, then the process drops back to the `sudo` user. On Linux, `setcap cap_net_raw+ep` avoids root entirely. |
+| Running as root longer than needed | Raw sockets are opened first, then the process drops back to the user who ran `sudo`, `doas` or `pkexec`, or to the `-run-as` account. Started as root with neither, it warns that it's staying root. On Linux, `setcap cap_net_raw+ep` avoids root entirely. |
 | Data leaving the network | No telemetry, update checks or CDN assets. HTTP clients ignore proxy settings. SSDP descriptions are only fetched from addresses inside the subnet. Webhooks must point at loopback/private IPs. |
 | Probing things you didn't mean to | All probes are rate limited and restricted to the attached subnet (largest /16). `-subnet` can only narrow it. |
 

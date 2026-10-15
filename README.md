@@ -61,8 +61,10 @@ can skip root with:
 sudo setcap cap_net_raw+ep ./LocalLanView
 ```
 
-When started with `sudo`, it drops back to your user after opening its
-sockets. The Capabilities page shows which features are on and why.
+When started with `sudo`, `doas` or `pkexec`, it drops back to your user
+after opening its sockets. If root starts it directly (a service, say),
+name the account to switch to with `-run-as`; otherwise it warns that it is
+staying root. The Capabilities page shows which features are on and why.
 
 ## Options
 
@@ -75,6 +77,7 @@ sockets. The Capabilities page shows which features are on and why.
 | `-password-file` | | Read the password from a file |
 | `-set-password` | | Prompt for a new password (or take it from the file/env) |
 | `-mode` | `auto` | `auto`, `std` or `elv` |
+| `-run-as` | | Account to switch to when started as root without sudo |
 | `-data-dir` | per-user config dir | Database location |
 | `-scan-interval` | `5m` | Time between scans |
 | `-interface`, `-subnet` | auto | Override detection (subnet must be on the interface) |

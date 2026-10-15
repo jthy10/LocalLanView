@@ -9,12 +9,12 @@ import (
 	"github.com/jthy10/LocalLanView/internal/privilege"
 )
 
-// defaultDataDir is the per-user config directory. When run through sudo it
-// points at the invoking user's directory, not root's, so the inventory
-// stays with the person who owns it.
-func defaultDataDir() (string, error) {
-	if uid, _, ok := privilege.SudoUser(); ok {
-		if u, err := user.LookupId(itoa(uid)); err == nil && u.HomeDir != "" {
+// defaultDataDir is the per-user config directory. When root is going to
+// drop to another account it points at that account's directory, not
+// root's, so the inventory stays with the person who owns it.
+func defaultDataDir(target privilege.User, dropping bool) (string, error) {
+	if dropping {
+		if u, err := user.LookupId(itoa(target.UID)); err == nil && u.HomeDir != "" {
 			switch runtime.GOOS {
 			case "darwin":
 				return filepath.Join(u.HomeDir, "Library", "Application Support", "LocalLanView"), nil
@@ -31,7 +31,7 @@ func defaultDataDir() (string, error) {
 }
 
 // makeDataDir creates dir and returns the directories it had to create,
-// outermost first, so they can be handed back to the sudo user.
+// outermost first, so they can be handed back to the account we drop to.
 func makeDataDir(dir string) ([]string, error) {
 	var created []string
 	for p := filepath.Clean(dir); ; p = filepath.Dir(p) {
@@ -46,7 +46,7 @@ func makeDataDir(dir string) ([]string, error) {
 // dataFiles are the files LocalLanView itself keeps in the data directory.
 var dataFiles = []string{"locallanview.db", "locallanview.db-wal", "locallanview.db-shm", "tls-cert.pem", "tls-key.pem"}
 
-// handBack gives what this program made back to the sudo user before
+// handBack gives what this program made back to the account we drop to before
 // privileges are dropped: the directories it created, the data directory
 // if it's the default one, and its own files. It never walks a directory
 // the user pointed it at, so -data-dir /srv doesn't give away /srv.
