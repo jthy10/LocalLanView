@@ -84,6 +84,16 @@ func (s *Sessions) Get(r *http.Request) *Session {
 	return sess
 }
 
+// Alive reports whether sess is still logged in, without counting as
+// activity. Long-lived requests use it to notice logouts and expiry.
+func (s *Sessions) Alive(sess *Session) bool {
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur := s.m[sess.ID]
+	return cur == sess && now.Sub(cur.LastSeen) <= s.Idle && now.Sub(cur.Created) <= s.Absolute
+}
+
 // Destroy logs a session out and clears the cookie.
 func (s *Sessions) Destroy(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(CookieName); err == nil {

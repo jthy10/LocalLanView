@@ -180,7 +180,7 @@ func csvSafe(row []string) []string {
 	return row
 }
 
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, _ *auth.Session) {
+func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
 	rc := http.NewResponseController(w)
 	rc.SetWriteDeadline(time.Time{}) // the stream is long-lived
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -191,7 +191,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, _ *auth.Se
 
 	ch, cancel := s.Hub.Subscribe()
 	defer cancel()
-	ping := time.NewTicker(25 * time.Second)
+	ping := time.NewTicker(s.pingEvery())
 	defer ping.Stop()
 	for {
 		select {
@@ -206,6 +206,11 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, _ *auth.Se
 			}
 			rc.Flush()
 		case <-ping.C:
+			// Stop streaming to a session that logged out or expired; the
+			// browser reconnects, gets a 401 and shows the login screen.
+			if !s.Sessions.Alive(sess) {
+				return
+			}
 			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
 				return
 			}

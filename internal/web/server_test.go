@@ -22,6 +22,7 @@ import (
 )
 
 type env struct {
+	s     *Server
 	srv   *httptest.Server
 	st    *store.Store
 	c     *http.Client
@@ -29,7 +30,7 @@ type env struct {
 	scans int
 }
 
-func setup(t *testing.T, loopbackOnly bool) *env {
+func setup(t *testing.T, loopbackOnly bool, opts ...func(*Server)) *env {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "w.db"))
 	if err != nil {
@@ -52,6 +53,10 @@ func setup(t *testing.T, loopbackOnly bool) *env {
 		ScanNow:      func() { e.scans++ },
 		LoopbackOnly: loopbackOnly,
 	}
+	for _, o := range opts {
+		o(s)
+	}
+	e.s = s
 	e.srv = httptest.NewServer(s.Handler())
 	t.Cleanup(e.srv.Close)
 	jar, _ := cookiejar.New(nil)
@@ -295,5 +300,30 @@ func TestStream(t *testing.T) {
 	defer resp.Body.Close()
 	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
 		t.Fatalf("content type %q", ct)
+	}
+}
+
+// A stream must end once its session is gone, so a logged-out or expired
+// browser stops receiving device data and finds out it has to log in.
+func TestStreamEndsAfterLogout(t *testing.T) {
+	e := setup(t, false, func(s *Server) { s.StreamPing = 50 * time.Millisecond })
+	e.login(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", e.srv.URL+"/api/stream", nil)
+	resp, err := e.c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	e.s.Sessions.DestroyAll()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		t.Fatalf("stream didn't end cleanly: %v", err)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("stream kept going after the session was destroyed")
+	}
+	if r := e.do(t, "GET", "/api/stream", nil, false); r.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("reconnect got %d, want 401", r.StatusCode)
 	}
 }

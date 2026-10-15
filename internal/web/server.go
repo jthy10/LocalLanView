@@ -40,6 +40,16 @@ type Server struct {
 	AllowedHosts []string
 	// OnPasswordChange is called after a successful password change.
 	OnPasswordChange func(generated bool)
+	// StreamPing is how often the event stream pings and rechecks the
+	// session (default 25s).
+	StreamPing time.Duration
+}
+
+func (s *Server) pingEvery() time.Duration {
+	if s.StreamPing > 0 {
+		return s.StreamPing
+	}
+	return 25 * time.Second
 }
 
 // dummyHash keeps login timing the same for unknown users.

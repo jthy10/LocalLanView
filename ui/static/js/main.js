@@ -146,6 +146,7 @@ export function updateBanner() {
   if (state.generatedPassword) {
     items.push(h("span", {}, "You're using the generated first-run password. ", h("a", { href: "#/settings" }, "Set your own"), "."));
   }
+  if (state.connLost) items.push(h("span", {}, "Lost the connection to LocalLanView. Live updates are paused; retrying…"));
   for (const w of (state.status && state.status.warnings) || []) items.push(h("span", {}, w));
   if (!items.length) { b.hidden = true; return; }
   b.replaceChildren(icon("warn"), ...items);
@@ -203,8 +204,45 @@ function connectStream() {
       if (mod.onEvent) mod.onEvent(e);
     }
   };
-  // EventSource reconnects on its own; an expired session bounces to the
-  // login screen on the next API call.
+  // EventSource retries dropped connections itself, but gives up for good
+  // on an HTTP error such as the 401 of an expired session. The server
+  // also ends the stream when the session expires or logs out.
+  let lostTimer = null;
+  es.onopen = () => {
+    clearTimeout(lostTimer);
+    if (state.connLost) {
+      state.connLost = false;
+      updateBanner();
+      loadStatus().catch(() => {});
+      scheduleRefresh(); // catch up on what happened while we were away
+    }
+  };
+  es.onerror = () => {
+    if (es !== state.stream) return;
+    if (es.readyState === EventSource.CLOSED) {
+      checkSession();
+    } else if (!lostTimer && !state.connLost) {
+      // A quick reconnect isn't worth a banner.
+      lostTimer = setTimeout(() => {
+        lostTimer = null;
+        if (es === state.stream && es.readyState !== EventSource.OPEN) { state.connLost = true; updateBanner(); }
+      }, 4000);
+    }
+  };
+}
+
+// checkSession runs when the stream is refused: either the session is gone
+// (api() sends us to the login screen) or the server is unreachable.
+async function checkSession() {
+  try {
+    await api("GET", "/api/session");
+    connectStream();
+  } catch (e) {
+    if (e.status === 401 || !state.csrf) return;
+    state.connLost = true;
+    updateBanner();
+    setTimeout(() => { if (state.csrf && state.connLost) checkSession(); }, 10000);
+  }
 }
 
 /* ---------- routing ---------- */
@@ -249,6 +287,7 @@ async function logout() {
 
 function showLogin(message) {
   if (state.stream) { state.stream.close(); state.stream = null; }
+  state.connLost = false;
   shell = null;
   renderLogin($("#root"), message, start);
 }
@@ -261,7 +300,10 @@ async function start() {
   route();
 }
 
-setUnauthorizedHandler(() => showLogin());
+// Any 401 while logged in means the session ended under us. Say so rather
+// than silently dropping to the login form; what you were viewing (and
+// unsaved device notes) are still there after signing back in.
+setUnauthorizedHandler(() => showLogin(shell ? "Your session expired. Sign in again to continue." : undefined));
 
 document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route);

@@ -9,6 +9,7 @@ export const state = {
   status: null,
   devices: [],
   stream: null,
+  connLost: false,
 };
 
 export const ICONS = {
