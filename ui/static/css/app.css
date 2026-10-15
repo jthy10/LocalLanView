@@ -469,6 +469,9 @@ label { display: block; font-weight: 500; margin-bottom: 6px; color: var(--text-
 /* ---------- devices ---------- */
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
+.pager[hidden] { display: none; }
+.pager-pos { color: var(--muted); font-variant-numeric: tabular-nums; }
 .search { position: relative; flex: 1 1 260px; max-width: 380px; }
 .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); width: 15px; height: 15px; }
 .search input { width: 100%; padding-left: 32px; }

@@ -11,7 +11,12 @@ const ui = {
   scope: "all",
   type: "",
   sort: { key: "ip", asc: true },
+  page: 0,
 };
+
+// Rows drawn at once; big networks would otherwise redraw thousands of rows
+// on every live update.
+const PAGE = 100;
 
 let root = null;
 
@@ -71,10 +76,10 @@ function draw() {
   const search = h("input", {
     type: "search", id: "device-search", placeholder: "Filter by name, IP, MAC, vendor, port…", value: ui.q,
     "aria-label": "Filter devices",
-    oninput: (e) => { ui.q = e.target.value; drawList(); },
+    oninput: (e) => { ui.q = e.target.value; ui.page = 0; drawList(); },
   });
   const types = [...new Set(all.map(deviceType))].sort();
-  const typeSel = h("select", { "aria-label": "Device type", onchange: (e) => { ui.type = e.target.value; drawList(); } },
+  const typeSel = h("select", { "aria-label": "Device type", onchange: (e) => { ui.type = e.target.value; ui.page = 0; drawList(); } },
     h("option", { value: "" }, "All types"),
     types.map((t) => h("option", { value: t, selected: ui.type === t }, t)));
 
@@ -97,8 +102,22 @@ function draw() {
       h("div", { class: "seg icons", role: "group", "aria-label": "Layout" }, layoutBtn("table", "list", "Table"), layoutBtn("tiles", "grid", "Tiles")),
     ),
     h("div", { id: "device-list" }),
+    h("nav", { class: "pager", id: "pager", "aria-label": "Device pages", hidden: true },
+      h("button", { type: "button", class: "btn btn-sm", id: "page-prev", onclick: () => turn(-1) }, "Previous"),
+      h("span", { class: "pager-pos", id: "page-pos", "aria-live": "polite" }),
+      h("button", { type: "button", class: "btn btn-sm", id: "page-next", onclick: () => turn(1) }, "Next")),
   );
   drawList();
+}
+
+function turn(by) {
+  ui.page += by;
+  drawList();
+  // The button that was used can become disabled at either end.
+  const prev = root.querySelector("#page-prev"), next = root.querySelector("#page-next");
+  if (document.activeElement && document.activeElement.disabled) (prev.disabled ? next : prev).focus();
+  const list = root.querySelector("#device-list");
+  if (list.getBoundingClientRect().top < 0) list.scrollIntoView();
 }
 
 function drawList() {
@@ -108,11 +127,20 @@ function drawList() {
   if (!scopes) return;
   scopes.replaceChildren(...SCOPES.map(([k, t, fn]) => h("button", {
     type: "button", class: ui.scope === k ? "on" : null, "aria-pressed": ui.scope === k ? "true" : "false",
-    onclick: () => { ui.scope = k; drawList(); },
+    onclick: () => { ui.scope = k; ui.page = 0; drawList(); },
   }, t, h("span", { class: "n" }, all.filter(fn).length))));
   root.querySelector("#dev-sub").textContent = ds.length === all.length
     ? all.length + " devices on this network"
     : ds.length + " of " + all.length + " devices";
+
+  const pages = Math.max(1, Math.ceil(ds.length / PAGE));
+  ui.page = Math.min(Math.max(ui.page, 0), pages - 1);
+  const first = ui.page * PAGE;
+  const shown = ds.slice(first, first + PAGE);
+  root.querySelector("#pager").hidden = pages < 2;
+  root.querySelector("#page-prev").disabled = ui.page === 0;
+  root.querySelector("#page-next").disabled = ui.page === pages - 1;
+  root.querySelector("#page-pos").textContent = (first + 1) + "–" + (first + shown.length) + " of " + ds.length;
 
   const list = root.querySelector("#device-list");
   if (!ds.length) {
@@ -121,12 +149,13 @@ function drawList() {
       : emptyState("radar", "No devices yet", "The first scan runs at startup and takes a minute or two.")));
     return;
   }
-  list.replaceChildren(ui.layout === "tiles" ? tiles(ds) : table(ds));
+  list.replaceChildren(ui.layout === "tiles" ? tiles(shown) : table(shown));
 }
 
 function setSort(k) {
   if (ui.sort.key === k) ui.sort.asc = !ui.sort.asc;
   else ui.sort = { key: k, asc: !["lastSeen", "firstSeen", "ports"].includes(k) };
+  ui.page = 0;
   drawList();
 }
 
