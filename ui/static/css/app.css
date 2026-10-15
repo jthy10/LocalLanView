@@ -241,7 +241,10 @@ h2 { font-size: 13px; font-weight: 600; }
 }
 .banner a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
-.view { width: 100%; max-width: 1440px; padding: 20px 24px 40px; }
+.view { width: 100%; max-width: 1440px; padding: 20px 24px 40px; min-width: 0; }
+/* Device names, banners and TXT values can be one long unbroken word;
+   let them wrap instead of pushing the page sideways. */
+.view, .toast { overflow-wrap: anywhere; }
 .page { display: contents; }
 .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head .sub { color: var(--muted); margin-top: 2px; }
@@ -514,7 +517,7 @@ td.num, th.num { text-align: right; }
 
 .dhead { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
 .dhead .t { flex: 1; min-width: 220px; }
-.dhead h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dhead h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .dhead .sub { color: var(--muted); margin-top: 3px; }
 .dhead .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -527,7 +530,7 @@ td.num, th.num { text-align: right; }
 .spec .k { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
 .spec .v { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
 
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; overflow-y: hidden; }
 .tabs button {
   display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
   border: 0; background: none; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer;
