@@ -65,15 +65,24 @@ function draw(view, id, data) {
     ["history", "History"],
     ["events", "Events", data.events.length],
   ];
-  const body = h("div", {});
-  const tabsEl = h("div", { class: "tabs", role: "tablist" });
-  const showTab = (k) => {
+  const body = h("div", { role: "tabpanel", id: "dev-panel", tabindex: "0" });
+  const tabsEl = h("div", { class: "tabs", role: "tablist", "aria-label": "Device details" });
+  const showTab = (k, focus) => {
     tab = k;
-    tabsEl.replaceChildren(...TABS.map(([key, t, n]) => h("button", {
-      type: "button", role: "tab", class: tab === key ? "on" : null, "aria-selected": tab === key ? "true" : "false",
+    tabsEl.replaceChildren(...TABS.map(([key, t, n], i) => h("button", {
+      type: "button", role: "tab", id: "dev-tab-" + key, class: tab === key ? "on" : null,
+      "aria-selected": tab === key ? "true" : "false", "aria-controls": "dev-panel", tabindex: tab === key ? "0" : "-1",
       onclick: () => showTab(key),
+      onkeydown: (e) => {
+        const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
+        if (to === undefined) return;
+        e.preventDefault();
+        showTab(TABS[(to + TABS.length) % TABS.length][0], true);
+      },
     }, t, n !== undefined ? h("span", { class: "n" }, n) : null)));
+    body.setAttribute("aria-labelledby", "dev-tab-" + k);
     body.replaceChildren(TAB_RENDER[k](d, data, save, id));
+    if (focus) tabsEl.querySelector('[aria-selected="true"]').focus();
   };
 
   view.replaceChildren(

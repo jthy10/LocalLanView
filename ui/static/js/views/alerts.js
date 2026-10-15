@@ -54,8 +54,8 @@ async function draw() {
       h("div", { class: "actions" }, markAll),
     ),
     h("div", { class: "toolbar" },
-      h("div", { class: "seg", role: "tablist" }, filters.filter((f) => f[2] || !f[0] || f[0] === "unread").map(([k, t, n]) => h("button", {
-        type: "button", role: "tab", class: filter === k ? "on" : null, "aria-selected": filter === k ? "true" : "false",
+      h("div", { class: "seg", role: "group", "aria-label": "Show" }, filters.filter((f) => f[2] || !f[0] || f[0] === "unread").map(([k, t, n]) => h("button", {
+        type: "button", class: filter === k ? "on" : null, "aria-pressed": filter === k ? "true" : "false",
         onclick: () => { filter = k; draw(); },
       }, t, h("span", { class: "n" }, n)))),
     ),

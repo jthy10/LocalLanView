@@ -121,7 +121,8 @@ export function intToIp(n) {
 /* ---------- small components ---------- */
 
 export function confidence(level, title) {
-  return h("span", { class: "conf " + (level || "none"), title: title || "Confidence: " + level }, h("i"), h("i"), h("i"));
+  const text = title || "Confidence: " + level;
+  return h("span", { class: "conf " + (level || "none"), title: text, role: "img", "aria-label": text }, h("i"), h("i"), h("i"));
 }
 
 export function typeCell(d) {

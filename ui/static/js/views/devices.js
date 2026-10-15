@@ -79,7 +79,7 @@ function draw() {
     types.map((t) => h("option", { value: t, selected: ui.type === t }, t)));
 
   const layoutBtn = (mode, ic, title) => h("button", {
-    type: "button", class: ui.layout === mode ? "on" : null, title, "aria-label": title,
+    type: "button", class: ui.layout === mode ? "on" : null, title, "aria-label": title, "aria-pressed": ui.layout === mode ? "true" : "false",
     onclick: () => { ui.layout = mode; try { localStorage.setItem("llv.layout", mode); } catch (_) { /* ignore */ } draw(); },
   }, icon(ic));
 
@@ -90,11 +90,11 @@ function draw() {
         h("a", { class: "btn", href: "/api/export?format=csv", download: true }, icon("download"), "Export CSV")),
     ),
     h("div", { class: "toolbar" },
-      h("div", { class: "seg", id: "scopes", role: "tablist" }),
+      h("div", { class: "seg", id: "scopes", role: "group", "aria-label": "Show" }),
       h("div", { class: "search" }, icon("search"), search, h("kbd", {}, "/")),
       typeSel,
       h("div", { class: "spacer" }),
-      h("div", { class: "seg icons" }, layoutBtn("table", "list", "Table"), layoutBtn("tiles", "grid", "Tiles")),
+      h("div", { class: "seg icons", role: "group", "aria-label": "Layout" }, layoutBtn("table", "list", "Table"), layoutBtn("tiles", "grid", "Tiles")),
     ),
     h("div", { id: "device-list" }),
   );
@@ -107,7 +107,7 @@ function drawList() {
   const scopes = root.querySelector("#scopes");
   if (!scopes) return;
   scopes.replaceChildren(...SCOPES.map(([k, t, fn]) => h("button", {
-    type: "button", role: "tab", class: ui.scope === k ? "on" : null, "aria-selected": ui.scope === k ? "true" : "false",
+    type: "button", class: ui.scope === k ? "on" : null, "aria-pressed": ui.scope === k ? "true" : "false",
     onclick: () => { ui.scope = k; drawList(); },
   }, t, h("span", { class: "n" }, all.filter(fn).length))));
   root.querySelector("#dev-sub").textContent = ds.length === all.length
@@ -137,10 +137,9 @@ function table(ds) {
   ];
   const head = h("tr", {}, cols.map(([k, t, cls]) => {
     const on = ui.sort.key === k;
-    return h("th", {
-      class: "sortable " + (cls || ""), "aria-sort": on ? (ui.sort.asc ? "ascending" : "descending") : null,
-      onclick: () => setSort(k),
-    }, t, h("span", { class: "arrow" }, on ? (ui.sort.asc ? "↑" : "↓") : ""));
+    return h("th", { class: cls || null, "aria-sort": on ? (ui.sort.asc ? "ascending" : "descending") : null },
+      h("button", { class: "sort", type: "button", onclick: () => setSort(k) },
+        t, h("span", { class: "arrow", "aria-hidden": "true" }, on ? (ui.sort.asc ? "↑" : "↓") : "")));
   }));
   const rows = ds.map((d) => h("tr", { onclick: () => { location.hash = "#/device/" + d.id; } },
     h("td", {}, h("div", { class: "cell-name" },

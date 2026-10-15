@@ -27,7 +27,7 @@ export function renderLogin(root, message, onLogin) {
     },
   },
     h("div", { class: "panel" },
-      h("div", { class: "brand" }, icon("logo", "mark"), h("span", { class: "brand-name" }, "LocalLanView")),
+      h("div", { class: "brand" }, icon("logo", "mark"), h("h1", { class: "brand-name" }, "LocalLanView")),
       h("p", { class: "lead" }, "Sign in to the network console"),
       h("div", { class: "field" }, h("label", { for: "user" }, "Username"), user),
       h("div", { class: "field" }, h("label", { for: "pass" }, "Password"), pass),
@@ -37,6 +37,6 @@ export function renderLogin(root, message, onLogin) {
     ),
     h("div", { class: "foot" }, icon("lock"), "Runs on this machine. Nothing leaves your network."),
   );
-  root.replaceChildren(h("div", { class: "login-page" }, form));
+  root.replaceChildren(h("main", { class: "login-page" }, form));
   pass.focus();
 }

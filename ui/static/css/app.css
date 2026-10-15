@@ -10,8 +10,8 @@
   --line-strong: #d0d5db;
   --text: #0f1419;
   --text-2: #3d4651;
-  --muted: #69737f;
-  --faint: #98a1ab;
+  --muted: #5b6571;
+  --faint: #626c78;
 
   --accent: #0b6bcb;
   --accent-hover: #0959a9;
@@ -56,7 +56,7 @@
     --text: #e6e9ed;
     --text-2: #c2c8cf;
     --muted: #8a949f;
-    --faint: #5d6772;
+    --faint: #7f8995;
 
     --accent: #4aa3ff;
     --accent-hover: #6cb4ff;
@@ -96,7 +96,7 @@
   --text: #e6e9ed;
   --text-2: #c2c8cf;
   --muted: #8a949f;
-  --faint: #5d6772;
+  --faint: #7f8995;
 
   --accent: #4aa3ff;
   --accent-hover: #6cb4ff;
@@ -224,6 +224,10 @@ h2 { font-size: 13px; font-weight: 600; }
 .crumbs .here { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .menu-btn { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: 8px; top: -48px; z-index: 100; padding: 8px 12px; border-radius: var(--r); background: var(--panel); color: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+.skip-link:focus { top: 8px; }
+.view:focus { outline: none; }
 
 .scanpill {
   display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px;
@@ -487,8 +491,9 @@ thead th {
 }
 thead th:first-child { border-top-left-radius: var(--r-lg); }
 thead th:last-child { border-top-right-radius: var(--r-lg); }
-thead th.sortable { cursor: pointer; }
-thead th.sortable:hover { color: var(--text); }
+thead th .sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; border-radius: 3px; }
+thead th .sort:hover { color: var(--text); }
+thead th .sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 thead th .arrow { display: inline-block; width: 10px; margin-left: 4px; color: var(--accent); }
 tbody tr { cursor: pointer; }
 tbody tr:hover td { background: var(--hover); }

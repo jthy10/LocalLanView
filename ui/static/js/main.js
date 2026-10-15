@@ -48,16 +48,17 @@ function buildShell() {
   const scanBtn = h("button", { class: "btn btn-primary", id: "scan-btn", type: "button", onclick: startScan },
     icon("refresh"), h("span", { class: "hide-sm" }, "Scan now"));
   const root = h("div", { class: "shell", id: "shell" },
-    h("aside", { class: "sidebar", "aria-label": "Sidebar" },
+    h("a", { class: "skip-link", href: "#view", onclick: (e) => { e.preventDefault(); $("#view").focus(); } }, "Skip to content"),
+    h("aside", { class: "sidebar", id: "sidebar", "aria-label": "Sidebar" },
       h("a", { class: "brand", href: "#/" }, icon("logo", "mark"),
         h("div", {}, h("div", { class: "brand-name" }, "LocalLanView"), h("div", { class: "brand-ver", id: "brand-ver" }))),
       h("div", { class: "nav-label" }, "Monitor"),
-      h("nav", { class: "nav" },
+      h("nav", { class: "nav", "aria-label": "Monitor" },
         navLink("overview", "overview", "Overview"),
         navLink("devices", "devices", "Devices"),
         navLink("alerts", "bell", "Alerts", count)),
       h("div", { class: "nav-label" }, "System"),
-      h("nav", { class: "nav" },
+      h("nav", { class: "nav", "aria-label": "System" },
         navLink("status", "radar", "Capabilities"),
         navLink("settings", "gear", "Settings"),
         navLink("about", "info", "About")),
@@ -71,15 +72,18 @@ function buildShell() {
         ),
       ),
     ),
-    h("div", { class: "scrim", onclick: () => root.classList.remove("nav-open") }),
+    h("div", { class: "scrim", onclick: () => setNavOpen(false) }),
     h("div", { class: "main" },
       h("header", { class: "topbar" },
-        h("button", { class: "btn btn-ghost icon-btn menu-btn", type: "button", "aria-label": "Menu", onclick: () => root.classList.toggle("nav-open") }, icon("menu")),
+        h("button", {
+          class: "btn btn-ghost icon-btn menu-btn", id: "menu-btn", type: "button", "aria-label": "Menu",
+          "aria-controls": "sidebar", "aria-expanded": "false", onclick: () => setNavOpen(!root.classList.contains("nav-open")),
+        }, icon("menu")),
         h("div", { class: "crumbs", id: "crumbs" }),
         h("div", { class: "topbar-right" }, h("div", { class: "scanpill", id: "scanpill" }), scanBtn),
       ),
-      h("div", { class: "banner", id: "banner", hidden: true }),
-      h("main", { class: "view", id: "view" }),
+      h("div", { class: "banner", id: "banner", role: "status", hidden: true }),
+      h("main", { class: "view", id: "view", tabindex: "-1" }),
     ),
   );
   $("#root").replaceChildren(root);
@@ -87,9 +91,17 @@ function buildShell() {
   shell = root;
 }
 
+function setNavOpen(open) {
+  if (!shell) return;
+  shell.classList.toggle("nav-open", open);
+  const b = $("#menu-btn");
+  if (b) b.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
 export function setCrumbs(parts) {
   const el = $("#crumbs");
   if (!el) return;
+  document.title = parts[parts.length - 1].text + " · LocalLanView";
   const kids = [];
   parts.forEach((p, i) => {
     if (i) kids.push(h("span", { class: "sep" }, icon("chevron")));
@@ -255,12 +267,14 @@ function currentRoute() {
   return { name: "overview" };
 }
 
+let routed = false; // a page has been shown since the last login
+
 function route() {
   if (!state.csrf) return;
   const r = currentRoute();
   const navName = r.name === "device" ? "devices" : r.name;
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === navName));
-  shell.classList.remove("nav-open");
+  setNavOpen(false);
   window.scrollTo(0, 0);
   // Each navigation renders into a fresh element. A slow render from the
   // page we just left then draws into a detached node instead of over
@@ -268,6 +282,10 @@ function route() {
   const page = h("div", { class: "page" });
   $("#view").replaceChildren(page);
   ROUTES[r.name].render(page, r);
+  // Move keyboard and screen reader focus to the new page, except on the
+  // first load, where the browser's own focus is the right place to start.
+  if (routed) $("#view").focus({ preventScroll: true });
+  routed = true;
 }
 
 /* ---------- session ---------- */
@@ -286,6 +304,8 @@ async function logout() {
 }
 
 function showLogin(message) {
+  routed = false;
+  document.title = "Sign in · LocalLanView";
   if (state.stream) { state.stream.close(); state.stream = null; }
   state.connLost = false;
   shell = null;

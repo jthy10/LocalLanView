@@ -4,9 +4,9 @@ import { setCrumbs, updateBanner } from "../main.js";
 export function render(view) {
   setCrumbs([{ text: "Settings" }]);
 
-  const cur = h("input", { type: "password", autocomplete: "current-password", required: true });
-  const nw = h("input", { type: "password", autocomplete: "new-password", required: true, minlength: "12" });
-  const nw2 = h("input", { type: "password", autocomplete: "new-password", required: true });
+  const cur = h("input", { type: "password", id: "pw-current", autocomplete: "current-password", required: true });
+  const nw = h("input", { type: "password", id: "pw-new", autocomplete: "new-password", required: true, minlength: "12", "aria-describedby": "pw-hint" });
+  const nw2 = h("input", { type: "password", id: "pw-confirm", autocomplete: "new-password", required: true });
   const err = h("div", { class: "error", role: "alert" });
   const form = h("form", {
     onsubmit: async (e) => {
@@ -23,10 +23,10 @@ export function render(view) {
       } catch (ex) { err.textContent = ex.message; }
     },
   },
-    h("div", { class: "field" }, h("label", {}, "Current password"), cur),
-    h("div", { class: "field" }, h("label", {}, "New password"), nw,
-      h("div", { class: "hint" }, "12+ characters mixing letters, digits and symbols, or 16+ of anything.")),
-    h("div", { class: "field" }, h("label", {}, "Confirm new password"), nw2),
+    h("div", { class: "field" }, h("label", { for: "pw-current" }, "Current password"), cur),
+    h("div", { class: "field" }, h("label", { for: "pw-new" }, "New password"), nw,
+      h("div", { class: "hint", id: "pw-hint" }, "12+ characters mixing letters, digits and symbols, or 16+ of anything.")),
+    h("div", { class: "field" }, h("label", { for: "pw-confirm" }, "Confirm new password"), nw2),
     err,
     h("button", { class: "btn btn-primary", type: "submit" }, icon("key"), "Update password"),
   );
