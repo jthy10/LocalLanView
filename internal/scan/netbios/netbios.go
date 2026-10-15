@@ -57,8 +57,11 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 			if r.Server {
 				o.Attrs["netbios.fileserver"] = "true"
 			}
+			// The host fills in this MAC itself, so it's only shown, never
+			// used as the device's identity: otherwise any host could claim
+			// another device's MAC and take over its record.
 			if r.MAC != nil {
-				o.MAC = r.MAC
+				o.Attrs["netbios.mac"] = r.MAC.String()
 			}
 			emit(o)
 		})

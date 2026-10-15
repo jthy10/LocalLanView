@@ -94,4 +94,8 @@ func TestCollector(t *testing.T) {
 	if len(got) != 1 || got[0].Hostname != "DESKTOP-7Q1" || got[0].Attrs["netbios.workgroup"] != "WORKGROUP" {
 		t.Fatalf("got %+v", got)
 	}
+	// The host reports its own MAC, so it must not become the device's key.
+	if got[0].MAC != nil || got[0].Attrs["netbios.mac"] != "00:15:5d:01:02:03" {
+		t.Fatalf("NetBIOS MAC should be an attribute only: MAC=%v attrs=%v", got[0].MAC, got[0].Attrs)
+	}
 }
