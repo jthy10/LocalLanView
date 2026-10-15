@@ -37,6 +37,7 @@ func TestParseRejects(t *testing.T) {
 		{[]string{"-mode", "root"}, "auto, std or elv"},
 		{[]string{"-addr", "nope"}, "-addr"},
 		{[]string{"-subnet", "10.0.0.0"}, "CIDR"},
+		{[]string{"-allow-host", "nas.lan:8787"}, "bare host name"},
 		{[]string{"-tls-cert", "a.pem"}, "together"},
 		{[]string{"-scan-interval", "1s"}, "at least"},
 		{[]string{"stray"}, "unexpected argument"},
@@ -67,5 +68,15 @@ func TestParseVersionWins(t *testing.T) {
 	}
 	if !c.Version {
 		t.Fatal("Version not set")
+	}
+}
+
+func TestParseAllowHost(t *testing.T) {
+	c, err := Parse([]string{"-allow-host", " nas.lan, ,box.home "}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(c.AllowHosts, "|") != "nas.lan|box.home" {
+		t.Fatalf("got %q", c.AllowHosts)
 	}
 }

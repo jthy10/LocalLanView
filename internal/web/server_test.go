@@ -206,6 +206,29 @@ func TestDNSRebindingBlocked(t *testing.T) {
 	}
 }
 
+func TestHostCheckOnLAN(t *testing.T) {
+	s := &Server{AllowedHosts: []string{"nas.lan", "myhost.local"}}
+	for host, want := range map[string]bool{
+		"192.168.1.10:8787":    true,
+		"[fe80::1]:8787":       true,
+		"localhost:8787":       true,
+		"nas.lan":              true,
+		"NAS.LAN.:8787":        true,
+		"myhost.local:8787":    true,
+		"attacker.example":     false,
+		"nas.lan.attacker.com": false,
+		"":                     false,
+	} {
+		if got := s.hostAllowed(host); got != want {
+			t.Errorf("hostAllowed(%q) = %v, want %v", host, got, want)
+		}
+	}
+	s.LoopbackOnly = true
+	if s.hostAllowed("192.168.1.10:8787") || s.hostAllowed("nas.lan") || !s.hostAllowed("[::1]:8787") {
+		t.Fatal("loopback-only console must only answer to loopback names")
+	}
+}
+
 func TestDeviceEditAndExport(t *testing.T) {
 	e := setup(t, false)
 	e.login(t)

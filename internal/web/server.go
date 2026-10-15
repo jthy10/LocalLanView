@@ -31,8 +31,13 @@ type Server struct {
 	Status func(ctx context.Context) any
 	// ScanNow triggers an immediate scan cycle.
 	ScanNow func()
-	// LoopbackOnly enables Host header checks against DNS rebinding.
+	// LoopbackOnly limits the Host header to loopback names. Otherwise it
+	// must be an IP literal, localhost or one of AllowedHosts. Both block
+	// DNS rebinding.
 	LoopbackOnly bool
+	// AllowedHosts are extra host names the console answers to when it
+	// isn't loopback-only (the machine's name, certificate names, -allow-host).
+	AllowedHosts []string
 	// OnPasswordChange is called after a successful password change.
 	OnPasswordChange func(generated bool)
 }
@@ -97,12 +102,12 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// hostCheck blocks DNS rebinding: a loopback-only console must be reached
-// through a loopback name, not some attacker-controlled domain that
-// resolves to 127.0.0.1.
+// hostCheck blocks DNS rebinding: the console must be reached through a
+// name we know, not some attacker-controlled domain that resolves to our
+// address. A loopback-only console only answers to loopback names.
 func (s *Server) hostCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.LoopbackOnly && !isLoopbackHost(r.Host) {
+		if !s.hostAllowed(r.Host) {
 			http.Error(w, "unexpected Host header", http.StatusMisdirectedRequest)
 			return
 		}
@@ -110,12 +115,36 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 	})
 }
 
-func isLoopbackHost(hostport string) bool {
+func (s *Server) hostAllowed(hostport string) bool {
+	host := hostOnly(hostport)
+	if isLoopbackHost(host) {
+		return true
+	}
+	if s.LoopbackOnly {
+		return false
+	}
+	// Rebinding needs a DNS name; an IP literal can only reach us directly.
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	host = strings.TrimSuffix(host, ".")
+	for _, h := range s.AllowedHosts {
+		if strings.EqualFold(host, strings.TrimSuffix(h, ".")) {
+			return true
+		}
+	}
+	return false
+}
+
+func hostOnly(hostport string) string {
 	host := hostport
 	if h, _, err := net.SplitHostPort(hostport); err == nil {
 		host = h
 	}
-	host = strings.Trim(host, "[]")
+	return strings.Trim(host, "[]")
+}
+
+func isLoopbackHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}

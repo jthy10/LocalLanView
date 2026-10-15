@@ -12,7 +12,7 @@ runs, and when it's around. Treat its database and console accordingly.
 | Password leaking via `ps` or shell history | No `-password` flag. Use `-password-file`, `LOCALLANVIEW_PASSWORD` or the prompt. |
 | Brute-force login | Per-client lockout after 10 failures in 15 minutes (IPv6 clients by /64), a global lockout after 50 that doesn't apply to logins from the machine itself, plus growing delays. Attempts count as soon as they start, and only two password hashes run at once. |
 | Cross-site request forgery | `SameSite=Strict` cookies, a per-session CSRF token on every state-changing request, and an Origin check. Login only accepts JSON. |
-| DNS rebinding against the loopback console | Requests with a non-loopback `Host` header are rejected when bound to loopback. |
+| DNS rebinding against the console | On loopback, requests with a non-loopback `Host` header are rejected. On the LAN, the `Host` must be an IP address, this machine's name, a TLS certificate name or one passed with `-allow-host`. |
 | XSS through device names, banners, TXT records | The UI never uses `innerHTML` for data. Strict CSP: `script-src 'self'`, no inline script or style. |
 | Formula injection in CSV export | Cells starting with `= + - @` are prefixed with `'`. |
 | Other local users reading the database | Data dir is `0700`, files `0600`, process umask `077` (Unix). On Windows it lives in the user's profile. |

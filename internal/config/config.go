@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Addr          Addr
 	AddrFallback  bool
+	AllowHosts    []string
 	User          string
 	PasswordFile  string
 	SetPassword   bool
@@ -60,6 +61,7 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 
 	addr := fs.String("addr", "127.0.0.1:8787", "address the web console binds to: host:port, :port or port")
 	fs.BoolVar(&c.AddrFallback, "addr-fallback", false, "if the port is in use, pick a free port instead of exiting")
+	allowHost := fs.String("allow-host", "", "extra host names the console answers to when not on loopback, comma-separated (e.g. nas.lan)")
 	fs.StringVar(&c.User, "user", "admin", "console username")
 	fs.StringVar(&c.PasswordFile, "password-file", "", "read the console password from this file")
 	fs.BoolVar(&c.SetPassword, "set-password", false, "set the console password (from -password-file, LOCALLANVIEW_PASSWORD, or a prompt) and continue")
@@ -97,6 +99,14 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 	var err error
 	if c.Addr, err = ParseAddr(*addr); err != nil {
 		return nil, fmt.Errorf("-addr: %w", err)
+	}
+	for _, h := range strings.Split(*allowHost, ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			if strings.ContainsAny(h, ":/ ") {
+				return nil, fmt.Errorf("-allow-host: %q should be a bare host name, without port or scheme", h)
+			}
+			c.AllowHosts = append(c.AllowHosts, h)
+		}
 	}
 	switch c.Mode {
 	case "auto", "std", "elv":

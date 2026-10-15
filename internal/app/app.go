@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -285,6 +287,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		Log:          log,
 		ScanNow:      engine.ScanNow,
 		LoopbackOnly: cfg.Addr.IsLoopback(),
+		AllowedHosts: consoleHosts(cfg.AllowHosts, tlsCfg),
 	}
 	generated := cr.Creds.Generated
 	var genMu sync.Mutex
@@ -378,6 +381,28 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	defer done()
 	httpSrv.Shutdown(shutCtx)
 	return nil
+}
+
+// consoleHosts lists the names the console answers to besides IP literals
+// and localhost: this machine's name (bare and .local), the TLS
+// certificate's names and anything passed with -allow-host.
+func consoleHosts(extra []string, tlsCfg *tls.Config) []string {
+	hosts := append([]string(nil), extra...)
+	if h, err := os.Hostname(); err == nil && h != "" {
+		short, _, _ := strings.Cut(h, ".")
+		hosts = append(hosts, h, short, short+".local")
+	}
+	if tlsCfg != nil {
+		for _, c := range tlsCfg.Certificates {
+			if c.Leaf == nil && len(c.Certificate) > 0 {
+				c.Leaf, _ = x509.ParseCertificate(c.Certificate[0])
+			}
+			if c.Leaf != nil {
+				hosts = append(hosts, c.Leaf.DNSNames...)
+			}
+		}
+	}
+	return hosts
 }
 
 func consoleURL(a *net.TCPAddr, tls bool) string {

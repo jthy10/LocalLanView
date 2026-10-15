@@ -70,6 +70,7 @@ sockets. The Capabilities page shows which features are on and why.
 |---|---|---|
 | `-addr` | `127.0.0.1:8787` | `host:port`, `:port` or `port` (the last two bind to loopback) |
 | `-addr-fallback` | off | Use a free port if the chosen one is taken |
+| `-allow-host` | | Extra names the console answers to off loopback, comma-separated |
 | `-user` | `admin` | Console username |
 | `-password-file` | | Read the password from a file |
 | `-set-password` | | Prompt for a new password (or take it from the file/env) |
@@ -97,6 +98,11 @@ LOCALLANVIEW_PASSWORD='a long passphrase' ./LocalLanView -addr 0.0.0.0:8787 -tls
 Binding to anything other than loopback is refused until you've set your
 own strong password. Without TLS you'll get a warning, since logins would
 travel in plain text.
+
+To block DNS rebinding, the console only answers to IP addresses, this
+machine's name (also as `name.local`) and the names in your TLS
+certificate. If you reach it through another name, such as a DNS entry on
+your router, add it with `-allow-host nas.lan`.
 
 ## Limitations
 
