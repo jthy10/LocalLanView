@@ -7,7 +7,7 @@ runs, and when it's around. Treat its database and console accordingly.
 
 | Threat | Mitigation |
 |---|---|
-| Someone else on the LAN opens the console | Binds to `127.0.0.1` by default. Binding anywhere else requires a password you set yourself (12+ chars, checked for strength), and prints a warning unless TLS is on. |
+| Someone else on the LAN opens the console | Binds to `127.0.0.1` by default. Binding anywhere else, with `-addr` or the LAN access setting, requires a password you set yourself (12+ chars, checked for strength). LAN access always uses HTTPS; `-addr` prints a warning unless TLS is on. |
 | Weak or default credentials | No default password. First run generates a random one, prints it once, and stores only an argon2id hash. |
 | Password leaking via `ps` or shell history | No `-password` flag. Use `-password-file`, `LOCALLANVIEW_PASSWORD` or the prompt. |
 | Brute-force login | Per-client lockout after 10 failures in 15 minutes (IPv6 clients by /64), a global lockout after 50 that doesn't apply to logins from the machine itself, plus growing delays. Attempts count as soon as they start, and only two password hashes run at once. |

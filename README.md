@@ -71,6 +71,7 @@ staying root. The Capabilities page shows which features are on and why.
 | Flag | Default | |
 |---|---|---|
 | `-addr` | `127.0.0.1:8787` | `host:port`, `:port` or `port` (the last two bind to loopback) |
+| `-lan` | off | Open the console to other devices on this network and remember it (`-lan=false` turns it off) |
 | `-addr-fallback` | off | Use a free port if the chosen one is taken |
 | `-allow-host` | | Extra names the console answers to off loopback, comma-separated |
 | `-user` | `admin` | Console username |
@@ -92,7 +93,23 @@ staying root. The Capabilities page shows which features are on and why.
 The password can also come from `LOCALLANVIEW_PASSWORD`. There's no
 `-password` flag on purpose: it would show up in `ps` and shell history.
 
-### Opening the console to your LAN
+### Using it from your phone or other devices
+
+LAN access is off by default. To turn it on, set your own password first
+(Settings, or `-set-password`), then either:
+
+- tick **Open LocalLanView to devices on this network** under Settings, or
+- start it with `-lan`.
+
+The console restarts on every network interface, on the same port, over
+HTTPS with a self-signed certificate (browsers warn about it once). The
+address to use, such as `https://192.168.1.50:8787`, is shown under
+Settings, in the sidebar's Network card and in the terminal. The choice is
+remembered across restarts; untick the box or run with `-lan=false` to go
+back to this machine only. If other devices can't connect, allow the port
+through this computer's firewall.
+
+For full control, `-addr` still works and overrides the setting:
 
 ```sh
 LOCALLANVIEW_PASSWORD='a long passphrase' ./LocalLanView -addr 0.0.0.0:8787 -tls-self-signed

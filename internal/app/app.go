@@ -149,48 +149,33 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 
 	// 6. Exposure rules.
 	var warnings []string
-	if !cfg.Addr.IsLoopback() {
-		if cr.Creds.Generated {
-			return fmt.Errorf("refusing to listen on %s: the console would be reachable from the network with the auto-generated password.\n"+
-				"Set your own strong password first with -set-password, -password-file or %s", cfg.Addr, EnvPassword)
-		}
-		if !cfg.TLS() {
-			msg := "The console is reachable from the network over plain HTTP; logins and the device list can be sniffed. Use -tls-self-signed or -tls-cert/-tls-key."
-			warnings = append(warnings, msg)
-			fmt.Fprintln(opt.Stderr, "WARNING: "+msg)
-		}
+	if cfg.LANSet && cfg.LAN && cr.Creds.Generated {
+		return fmt.Errorf("refusing to open the console to the network with the auto-generated password.\n"+
+			"Set your own strong password first with -set-password, -password-file or %s", EnvPassword)
 	}
-
-	// 7. TLS.
-	var tlsCfg *tls.Config
-	switch {
-	case cfg.TLSCert != "":
-		c, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
-		if err != nil {
-			return fmt.Errorf("loading TLS certificate: %w", err)
-		}
-		tlsCfg = &tls.Config{Certificates: []tls.Certificate{c}, MinVersion: tls.VersionTLS12}
-	case cfg.TLSSelfSigned:
-		ips := []net.IP{nw.IP.AsSlice()}
-		if !cfg.Addr.IP.IsUnspecified() {
-			ips = append(ips, cfg.Addr.IP.AsSlice())
-		}
-		c, path, err := selfSignedCert(dataDir, ips)
-		if err != nil {
-			return fmt.Errorf("creating self-signed certificate: %w", err)
-		}
-		fmt.Fprintf(out, "Using self-signed certificate %s (your browser will warn about it once).\n", path)
-		tlsCfg = &tls.Config{Certificates: []tls.Certificate{c}, MinVersion: tls.VersionTLS12}
-	}
-
-	// 8. Bind the console.
-	ln, err := listen(cfg.Addr, cfg.AddrFallback)
+	lan, err := lanWanted(ctx, st, cfg)
 	if err != nil {
 		return err
 	}
-	defer ln.Close()
+	const heldBackWarning = "LAN access is on, but the console still uses the generated password, so it's only reachable from this machine. Set your own password, then turn LAN access on again under Settings."
+	lanHeldBack := lan && cr.Creds.Generated
+	if lanHeldBack {
+		lan = false
+		fmt.Fprintln(opt.Stderr, "WARNING: "+heldBackWarning)
+	}
+	if !cfg.Addr.IsLoopback() && cr.Creds.Generated {
+		return fmt.Errorf("refusing to listen on %s: the console would be reachable from the network with the auto-generated password.\n"+
+			"Set your own strong password first with -set-password, -password-file or %s", cfg.Addr, EnvPassword)
+	}
 
-	// 9. Drop root now that the sockets are open; they stay usable.
+	// 7. Bind the console, with TLS when asked for or when it's on the LAN.
+	cons := &console{cfg: cfg, nw: nw, dataDir: dataDir, out: out, stderr: opt.Stderr, log: log, errs: make(chan error, 2)}
+	if err := cons.bind(lan, 0, cfg.AddrFallback); err != nil {
+		return err
+	}
+	defer cons.stop(context.Background())
+
+	// 8. Drop root now that the sockets are open; they stay usable.
 	if dropping {
 		handBack(dataDir, createdDirs, defaultDir, target.UID, target.GID)
 		if err := privilege.DropTo(target); err != nil {
@@ -204,7 +189,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		fmt.Fprintln(opt.Stderr, "WARNING: "+msg)
 	}
 
-	// 10. Inventory, alerts, scanning.
+	// 9. Inventory, alerts, scanning.
 	hub := alert.NewHub()
 	var webhook *alert.Webhook
 	if cfg.Webhook != "" {
@@ -288,22 +273,27 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		hub.Publish(alert.Message{Type: "scan", Data: ss.snapshot()})
 	}
 
-	// 11. Web console.
-	consoleAddr := ln.Addr().String()
+	// 10. Web console.
 	srv := &web.Server{
-		Store:        st,
-		Sessions:     auth.NewSessions(tlsCfg != nil),
-		Limiter:      auth.NewLoginLimiter(),
-		Hub:          hub,
-		Static:       ui.FS(),
-		Log:          log,
-		ScanNow:      engine.ScanNow,
-		LoopbackOnly: cfg.Addr.IsLoopback(),
-		AllowedHosts: consoleHosts(cfg.AllowHosts, tlsCfg),
+		Store:   st,
+		Limiter: auth.NewLoginLimiter(),
+		Hub:     hub,
+		Static:  ui.FS(),
+		Log:     log,
+		ScanNow: engine.ScanNow,
 	}
 	generated := cr.Creds.Generated
 	var genMu sync.Mutex
 	srv.OnPasswordChange = func(g bool) { genMu.Lock(); generated = g; genMu.Unlock() }
+	srv.SetLAN = func(ctx context.Context, on bool) (any, error) {
+		genMu.Lock()
+		g := generated
+		genMu.Unlock()
+		if on && g {
+			return nil, ErrLANNeedsPassword
+		}
+		return cons.setLAN(ctx, st, on)
+	}
 	srv.Status = func(ctx context.Context) any {
 		ds, _ := st.Devices(ctx)
 		unread, _ := st.UnacknowledgedCount(ctx)
@@ -316,29 +306,38 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		genMu.Lock()
 		g := generated
 		genMu.Unlock()
+		ci := cons.info()
+		ws := append([]string(nil), warnings...)
+		if !ci.Loopback && !ci.TLS {
+			ws = append(ws, plainHTTPWarning)
+		}
+		if lanHeldBack && g {
+			ws = append(ws, heldBackWarning)
+		}
 		return map[string]any{
 			"version":           opt.Version,
 			"network":           map[string]string{"interface": nw.Iface.Name, "ip": nw.IP.String(), "subnet": nw.Prefix.String(), "mac": nw.Iface.HardwareAddr.String(), "gateway": gateway},
 			"privilege":         priv,
 			"features":          engine.Features(),
 			"scan":              ss.snapshot(),
-			"console":           map[string]any{"addr": consoleAddr, "tls": tlsCfg != nil, "loopback": cfg.Addr.IsLoopback()},
+			"console":           ci,
 			"dbPath":            st.Path(),
 			"devices":           len(ds),
 			"online":            online,
 			"unread":            unread,
 			"generatedPassword": g,
-			"warnings":          warnings,
+			"warnings":          ws,
 			"liveWindowSeconds": liveWindow.Seconds(),
 		}
 	}
-	httpSrv := &http.Server{
-		Handler:           srv.Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		IdleTimeout:       2 * time.Minute,
-		TLSConfig:         tlsCfg,
-		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
+	// Each listener gets its own copy of the server, with fresh sessions:
+	// moving to or from the LAN changes the address and the scheme anyway.
+	cons.handler = func(loopback bool, tlsCfg *tls.Config) http.Handler {
+		s := *srv
+		s.Sessions = auth.NewSessions(tlsCfg != nil)
+		s.LoopbackOnly = loopback
+		s.AllowedHosts = consoleHosts(cfg.AllowHosts, tlsCfg)
+		return s.Handler()
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -357,41 +356,26 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		}()
 	}
 
-	serveErr := make(chan error, 1)
-	go func() {
-		var err error
-		if tlsCfg != nil {
-			err = httpSrv.ServeTLS(ln, "", "")
-		} else {
-			err = httpSrv.Serve(ln)
-		}
-		if !errors.Is(err, http.ErrServerClosed) {
-			serveErr <- err
-		}
-		close(serveErr)
-	}()
-
-	url := consoleURL(ln.Addr().(*net.TCPAddr), tlsCfg != nil)
-	printBanner(out, url, cfg, cr, priv, nw, engine.Features(), dataDir)
+	cons.serve()
+	ci := cons.info()
+	printBanner(out, ci, cr, priv, nw, engine.Features(), dataDir)
 	if opt.Ready != nil {
-		opt.Ready(url)
+		opt.Ready(ci.URL)
 	}
 	if !cfg.NoOpenBrowser {
-		openBrowser(url)
+		openBrowser(ci.URL)
 	}
 
 	go engine.Run(ctx)
 
 	select {
 	case <-ctx.Done():
-	case err := <-serveErr:
-		if err != nil {
-			return fmt.Errorf("web console stopped: %w", err)
-		}
+	case err := <-cons.errs:
+		return fmt.Errorf("web console stopped: %w", err)
 	}
 	shutCtx, done := context.WithTimeout(context.Background(), 5*time.Second)
 	defer done()
-	httpSrv.Shutdown(shutCtx)
+	cons.stop(shutCtx)
 	return nil
 }
 
@@ -420,11 +404,9 @@ func consoleHosts(extra []string, tlsCfg *tls.Config) []string {
 func consoleURL(a *net.TCPAddr, tls bool) string {
 	host := a.IP
 	if host.IsUnspecified() {
-		if host.To4() != nil {
-			host = net.IPv4(127, 0, 0, 1)
-		} else {
-			host = net.IPv6loopback
-		}
+		// Go reports a 0.0.0.0 listener as [::], and a [::] one takes IPv4
+		// too, so 127.0.0.1 reaches either.
+		host = net.IPv4(127, 0, 0, 1)
 	}
 	scheme := "http"
 	if tls {
@@ -433,9 +415,12 @@ func consoleURL(a *net.TCPAddr, tls bool) string {
 	return scheme + "://" + net.JoinHostPort(host.String(), fmt.Sprint(a.Port)) + "/"
 }
 
-func printBanner(w io.Writer, url string, cfg *config.Config, cr *credResult, priv privilege.Status, nw *netinfo.Network, feats []scan.Feature, dataDir string) {
+func printBanner(w io.Writer, ci consoleInfo, cr *credResult, priv privilege.Status, nw *netinfo.Network, feats []scan.Feature, dataDir string) {
 	fmt.Fprintf(w, "\nLocalLanView is running\n\n")
-	fmt.Fprintf(w, "  Dashboard:  %s\n", url)
+	fmt.Fprintf(w, "  Dashboard:  %s\n", ci.URL)
+	if ci.LANURL != "" {
+		fmt.Fprintf(w, "  On your network: %s  (open it on any device on this network)\n", ci.LANURL)
+	}
 	fmt.Fprintf(w, "  Scanning:   %s on %s (this machine is %s)\n", nw.Prefix, nw.Iface.Name, nw.IP)
 	mode := "standard"
 	if priv.Elevated {

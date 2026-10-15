@@ -13,7 +13,10 @@ import (
 // Config holds everything parsed from the command line.
 type Config struct {
 	Addr          Addr
+	AddrSet       bool // -addr was given, which overrides the LAN setting
 	AddrFallback  bool
+	LAN           bool // with LANSet: turn LAN access on or off and remember it
+	LANSet        bool
 	AllowHosts    []string
 	User          string
 	PasswordFile  string
@@ -61,6 +64,7 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 	fs.SetOutput(output)
 
 	addr := fs.String("addr", "127.0.0.1:8787", "address the web console binds to: host:port, :port or port")
+	fs.BoolVar(&c.LAN, "lan", false, "open the console to other devices on this network and remember the choice (-lan=false turns it off); needs your own password and serves HTTPS")
 	fs.BoolVar(&c.AddrFallback, "addr-fallback", false, "if the port is in use, pick a free port instead of exiting")
 	allowHost := fs.String("allow-host", "", "extra host names the console answers to when not on loopback, comma-separated (e.g. nas.lan)")
 	fs.StringVar(&c.User, "user", "admin", "console username")
@@ -94,6 +98,14 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 		// Print the version even if other flags have bad values.
 		return c, nil
 	}
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "addr":
+			c.AddrSet = true
+		case "lan":
+			c.LANSet = true
+		}
+	})
 	if fs.NArg() > 0 {
 		return nil, fmt.Errorf("unexpected argument %q (all options are flags, see -h)", fs.Arg(0))
 	}
@@ -133,6 +145,9 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 	}
 	if (c.TLSCert == "") != (c.TLSKey == "") {
 		return nil, errors.New("-tls-cert and -tls-key must be used together")
+	}
+	if c.AddrSet && c.LANSet {
+		return nil, errors.New("use either -addr or -lan, not both; for LAN access on another port use -addr 0.0.0.0:PORT")
 	}
 	if c.TLSCert != "" && c.TLSSelfSigned {
 		return nil, errors.New("use either -tls-cert/-tls-key or -tls-self-signed, not both")

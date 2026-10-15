@@ -607,6 +607,15 @@ td.wrap { white-space: normal; color: var(--muted); }
 .setting .about h2 { margin-bottom: 4px; font-size: 14px; }
 .setting .about p { color: var(--muted); }
 .setting form { max-width: 420px; }
+.check { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
+.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.check:has(input:disabled) { cursor: default; color: var(--muted); }
+.lan-url {
+  display: flex; gap: 10px; align-items: flex-start; margin-top: 4px; padding: 12px;
+  background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--r);
+}
+.lan-url > svg { flex: none; width: 18px; height: 18px; color: var(--accent); margin-top: 1px; }
+.lan-url a { overflow-wrap: anywhere; }
 
 /* ---------- login ---------- */
 

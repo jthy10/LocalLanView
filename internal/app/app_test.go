@@ -3,10 +3,13 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -185,4 +188,146 @@ func TestSelfSignedTLS(t *testing.T) {
 	if !strings.HasPrefix(url, "https://") {
 		t.Fatalf("url %s", url)
 	}
+}
+
+// lanConfig is testConfig on a free port, which -lan keeps; -addr can't be
+// combined with -lan.
+func lanConfig(t *testing.T, args ...string) *config.Config {
+	cfg := testConfig(t, args...)
+	cfg.Addr.Port = freePort(t)
+	return cfg
+}
+
+func TestLANFlag(t *testing.T) {
+	err := run(lanConfig(t, "-lan"), fakeChecker(false))
+	if err == nil || !strings.Contains(err.Error(), "auto-generated password") {
+		t.Fatalf("want refusal with generated password, got %v", err)
+	}
+
+	t.Setenv(EnvPassword, "Env-Supplied-Passw0rd")
+	dir := t.TempDir()
+	out := &syncBuf{}
+	cfg := lanConfig(t, "-lan", "-data-dir", dir)
+	url := start(t, cfg, out)
+	if !strings.HasPrefix(url, "https://127.0.0.1:") || !strings.Contains(out.String(), "On your network: https://") {
+		t.Fatalf("url %s, output:\n%s", url, out)
+	}
+
+	// The choice is remembered without the flag, and -lan=false forgets it.
+	for _, tc := range []struct {
+		args  []string
+		https bool
+	}{{nil, true}, {[]string{"-lan=false"}, false}, {nil, false}} {
+		url := ""
+		cfg := lanConfig(t, append([]string{"-data-dir", dir}, tc.args...)...)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		Run(ctx, cfg, Options{Stdout: io.Discard, Stderr: io.Discard, Checker: fakeChecker(false), Network: loopbackNet(), NoSignal: true,
+			Ready: func(u string) { url = u; cancel() }})
+		cancel()
+		if strings.HasPrefix(url, "https://") != tc.https {
+			t.Fatalf("%v: url %q", tc.args, url)
+		}
+	}
+}
+
+func TestLANToggle(t *testing.T) {
+	t.Setenv(EnvPassword, "Env-Supplied-Passw0rd")
+	out := &syncBuf{}
+	url := start(t, lanConfig(t), out)
+	if !strings.HasPrefix(url, "http://127.0.0.1:") {
+		t.Fatalf("LAN access should be off by default: %s", url)
+	}
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, Timeout: 5 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+	csrf := login(t, c, url)
+
+	resp := post(t, c, url+"api/console", csrf, `{"lan":true}`)
+	var info struct {
+		URL    string `json:"url"`
+		LANURL string `json:"lanUrl"`
+		LAN    bool   `json:"lan"`
+	}
+	json.NewDecoder(resp.Body).Decode(&info)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !info.LAN || !strings.HasPrefix(info.URL, "https://127.0.0.1:") || info.LANURL == "" {
+		t.Fatalf("turning LAN on: %d %+v", resp.StatusCode, info)
+	}
+
+	// The console comes back over HTTPS on the same port, with new sessions.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp, err := c.Get(info.URL + "api/session")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusUnauthorized {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("console didn't come back on %s: %v", info.URL, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !strings.Contains(out.String(), "On other devices: https://") {
+		t.Fatalf("terminal wasn't told the new address:\n%s", out)
+	}
+
+	csrf = login(t, c, info.URL)
+	resp = post(t, c, info.URL+"api/console", csrf, `{"lan":false}`)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("turning LAN off: %d", resp.StatusCode)
+	}
+}
+
+func TestLANToggleNeedsOwnPassword(t *testing.T) {
+	out := &syncBuf{}
+	url := start(t, lanConfig(t), out)
+	pw := ""
+	for _, l := range strings.Split(out.String(), "\n") {
+		if strings.HasPrefix(l, "      ") && strings.TrimSpace(l) != "" {
+			pw = strings.TrimSpace(l)
+		}
+	}
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, Timeout: 5 * time.Second}
+	csrf := loginAs(t, c, url, pw)
+	resp := post(t, c, url+"api/console", csrf, `{"lan":true}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("want 409 with the generated password, got %d", resp.StatusCode)
+	}
+}
+
+func login(t *testing.T, c *http.Client, url string) string {
+	return loginAs(t, c, url, "Env-Supplied-Passw0rd")
+}
+
+func loginAs(t *testing.T, c *http.Client, url, pw string) string {
+	t.Helper()
+	b, _ := json.Marshal(map[string]string{"user": "admin", "password": pw})
+	resp, err := c.Post(url+"api/login", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("login: %d", resp.StatusCode)
+	}
+	var out struct{ CSRF string }
+	json.NewDecoder(resp.Body).Decode(&out)
+	return out.CSRF
+}
+
+func post(t *testing.T, c *http.Client, url, csrf, body string) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrf)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
 }

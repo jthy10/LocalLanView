@@ -80,3 +80,25 @@ func TestParseAllowHost(t *testing.T) {
 		t.Fatalf("got %q", c.AllowHosts)
 	}
 }
+
+func TestParseLAN(t *testing.T) {
+	c, err := Parse(nil, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.LAN || c.LANSet || c.AddrSet {
+		t.Fatalf("defaults: %+v", c)
+	}
+	if c, _ = Parse([]string{"-lan"}, io.Discard); !c.LAN || !c.LANSet {
+		t.Fatalf("-lan: %+v", c)
+	}
+	if c, _ = Parse([]string{"-lan=false"}, io.Discard); c.LAN || !c.LANSet {
+		t.Fatalf("-lan=false: %+v", c)
+	}
+	if c, _ = Parse([]string{"-addr", "9000"}, io.Discard); !c.AddrSet {
+		t.Fatalf("-addr: %+v", c)
+	}
+	if _, err := Parse([]string{"-lan", "-addr", "9000"}, io.Discard); err == nil || !strings.Contains(err.Error(), "-addr or -lan") {
+		t.Fatalf("-lan with -addr: %v", err)
+	}
+}

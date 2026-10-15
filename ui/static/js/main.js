@@ -115,11 +115,14 @@ function renderNetcard() {
   if (!s) return;
   $("#brand-ver").textContent = s.version;
   const n = s.network;
-  const row = (k, v) => [h("dt", {}, k), h("dd", { title: v }, v || "—")];
+  const lanUrl = s.console && s.console.lanUrl;
+  const row = (k, v, title) => [h("dt", {}, k), h("dd", { title: title || v }, v || "—")];
   $("#netcard").replaceChildren(
     h("div", { class: "netcard-head" }, icon("network"), "Network",
       h("span", { class: "badge plain mono", title: "Interface" }, n.interface)),
-    h("dl", {}, row("Subnet", n.subnet), row("This host", n.ip), row("Gateway", n.gateway)),
+    h("dl", {}, row("Subnet", n.subnet), row("This host", n.ip), row("Gateway", n.gateway),
+      lanUrl ? row("Web app", h("a", { href: lanUrl }, lanUrl.replace(/^https?:\/\/|\/$/g, "")),
+        "Open this on any device connected to your network") : null),
   );
 }
 
