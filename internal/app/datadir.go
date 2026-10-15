@@ -56,12 +56,14 @@ func handBack(dataDir string, created []string, isDefault bool, uid, gid int) {
 		dirs = append(dirs, dataDir)
 	}
 	for _, d := range dirs {
-		os.Lchown(d, uid, gid)
+		lchown(d, uid, gid)
 	}
 	for _, f := range dataFiles {
-		os.Lchown(filepath.Join(dataDir, f), uid, gid)
+		lchown(filepath.Join(dataDir, f), uid, gid)
 	}
 }
+
+var lchown = os.Lchown // replaced in tests
 
 // writeFileReplace writes data to a temporary file and renames it over
 // path, so a symlink at path is replaced rather than followed.

@@ -11,11 +11,15 @@ import (
 
 // SudoUser returns the uid/gid of the user who invoked sudo, if any.
 func SudoUser() (uid, gid int, ok bool) {
-	if os.Geteuid() != 0 {
+	return sudoUser(os.Geteuid(), os.Getenv)
+}
+
+func sudoUser(euid int, getenv func(string) string) (uid, gid int, ok bool) {
+	if euid != 0 {
 		return 0, 0, false
 	}
-	u, err1 := strconv.Atoi(os.Getenv("SUDO_UID"))
-	g, err2 := strconv.Atoi(os.Getenv("SUDO_GID"))
+	u, err1 := strconv.Atoi(getenv("SUDO_UID"))
+	g, err2 := strconv.Atoi(getenv("SUDO_GID"))
 	if err1 != nil || err2 != nil || u == 0 {
 		return 0, 0, false
 	}

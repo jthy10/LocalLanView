@@ -1,6 +1,7 @@
 package netinfo
 
 import (
+	"net"
 	"net/netip"
 	"strings"
 	"testing"
@@ -62,5 +63,57 @@ func TestParseProcRoute(t *testing.T) {
 	}
 	if _, ok := parseProcRoute(strings.NewReader(sample), "wlan0"); ok {
 		t.Fatal("wrong interface matched")
+	}
+}
+
+func TestPick(t *testing.T) {
+	ipnet := func(s string) net.Addr {
+		ip, n, err := net.ParseCIDR(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n.IP = ip
+		return n
+	}
+	ifi := net.Interface{Name: "eth0"}
+	tests := []struct {
+		name   string
+		addrs  []net.Addr
+		subnet string
+		want   string // "" = no match, "err" = error
+	}{
+		{"attached subnet", []net.Addr{ipnet("192.168.1.20/24")}, "", "192.168.1.20 192.168.1.0/24"},
+		{"skips IPv6 and link-local", []net.Addr{ipnet("fe80::1/64"), ipnet("169.254.3.4/16"), ipnet("10.0.0.5/24")}, "", "10.0.0.5 10.0.0.0/24"},
+		{"skips loopback", []net.Addr{ipnet("127.0.0.1/8")}, "", ""},
+		{"non-IPNet ignored", []net.Addr{&net.IPAddr{IP: net.IPv4(10, 0, 0, 1)}}, "", ""},
+		{"narrower override", []net.Addr{ipnet("192.168.1.20/24")}, "192.168.1.0/26", "192.168.1.20 192.168.1.0/26"},
+		{"override outside the segment", []net.Addr{ipnet("192.168.1.20/24")}, "192.168.2.0/24", ""},
+		{"override wider than the segment", []net.Addr{ipnet("192.168.1.20/24")}, "192.168.0.0/16", ""},
+		{"IPv6 override", []net.Addr{ipnet("192.168.1.20/24")}, "2001:db8::/64", ""},
+		{"too large", []net.Addr{ipnet("10.1.2.3/8")}, "", "err"},
+		{"too large made small", []net.Addr{ipnet("10.1.2.3/8")}, "10.1.2.0/24", "10.1.2.3 10.1.2.0/24"},
+	}
+	for _, tt := range tests {
+		var sub netip.Prefix
+		if tt.subnet != "" {
+			sub = netip.MustParsePrefix(tt.subnet)
+		}
+		n, err := pick(ifi, tt.addrs, sub)
+		got := ""
+		switch {
+		case err != nil:
+			got = "err"
+		case n != nil:
+			got = n.IP.String() + " " + n.Prefix.String()
+		}
+		if got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestDetectUnknownInterface(t *testing.T) {
+	if _, err := Detect("no-such-iface0", netip.Prefix{}); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("err = %v", err)
 	}
 }

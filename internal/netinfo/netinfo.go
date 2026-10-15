@@ -45,32 +45,8 @@ func Detect(iface string, subnet netip.Prefix) (*Network, error) {
 		if err != nil {
 			continue
 		}
-		for _, a := range addrs {
-			ipn, ok := a.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			ip, ok := netip.AddrFromSlice(ipn.IP)
-			if !ok {
-				continue
-			}
-			ip = ip.Unmap()
-			if !ip.Is4() || ip.IsLinkLocalUnicast() || ip.IsLoopback() {
-				continue
-			}
-			ones, _ := ipn.Mask.Size()
-			attached := netip.PrefixFrom(ip, ones).Masked()
-			n := &Network{Iface: ifi, IP: ip, Prefix: attached}
-			if subnet.IsValid() {
-				if !subnet.Addr().Is4() || subnet.Bits() < attached.Bits() || !attached.Contains(subnet.Addr()) {
-					continue
-				}
-				n.Prefix = subnet
-			}
-			if err := n.check(); err != nil {
-				return nil, err
-			}
-			return n, nil
+		if n, err := pick(ifi, addrs, subnet); n != nil || err != nil {
+			return n, err
 		}
 	}
 	switch {
@@ -81,6 +57,40 @@ func Detect(iface string, subnet netip.Prefix) (*Network, error) {
 	default:
 		return nil, errors.New("no active network interface with an IPv4 address found; use -interface to pick one")
 	}
+}
+
+// pick returns the network to scan from one interface's addresses: the
+// first usable IPv4 address, narrowed to subnet if one was given. It
+// returns nil, nil if none of the addresses fit.
+func pick(ifi net.Interface, addrs []net.Addr, subnet netip.Prefix) (*Network, error) {
+	for _, a := range addrs {
+		ipn, ok := a.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		ip, ok := netip.AddrFromSlice(ipn.IP)
+		if !ok {
+			continue
+		}
+		ip = ip.Unmap()
+		if !ip.Is4() || ip.IsLinkLocalUnicast() || ip.IsLoopback() {
+			continue
+		}
+		ones, _ := ipn.Mask.Size()
+		attached := netip.PrefixFrom(ip, ones).Masked()
+		n := &Network{Iface: ifi, IP: ip, Prefix: attached}
+		if subnet.IsValid() {
+			if !subnet.Addr().Is4() || subnet.Bits() < attached.Bits() || !attached.Contains(subnet.Addr()) {
+				continue
+			}
+			n.Prefix = subnet
+		}
+		if err := n.check(); err != nil {
+			return nil, err
+		}
+		return n, nil
+	}
+	return nil, nil
 }
 
 func (n *Network) check() error {
