@@ -67,6 +67,11 @@ collectors ──Observation──▶ inventory ──▶ fingerprint ──▶ 
   `ip:` key and is merged when its MAC shows up.
 - The first scan on a fresh database is a baseline: devices are recorded
   without "new device" alerts.
+- Once a day, after a scan, old data is pruned: alerts after 90 days (and
+  beyond the newest 10,000), old IPs, names, services and closed ports
+  after 180 days, devices unseen for a year, or 30 days for randomized
+  MACs and IP-only rows. Devices you've named, tagged, noted, trusted or
+  retyped are never pruned.
 
 ## Extension points
 

@@ -259,6 +259,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		&ports.Collector{Disabled: cfg.NoPortScan},
 	}
 	ss := &scanState{Interval: cfg.ScanInterval.Seconds()}
+	var lastPrune time.Time // OnCycle calls don't overlap
 	engine := &scan.Engine{
 		Collectors: collectors,
 		Env:        env,
@@ -277,6 +278,10 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		ss.mu.Unlock()
 		if !running {
 			inv.FlushPending()
+			if time.Since(lastPrune) > 24*time.Hour {
+				lastPrune = time.Now()
+				inv.Prune(lastPrune)
+			}
 			inv.SetBaseline(false)
 			st.SetSetting(context.Background(), "baseline_done", "1")
 		}

@@ -66,6 +66,23 @@ func (inv *Inventory) SetBaseline(b bool) {
 	inv.mu.Unlock()
 }
 
+// Prune drops old history and long-gone devices from the store. It holds
+// the inventory lock so it can't remove a device mid-observation.
+func (inv *Inventory) Prune(now time.Time) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+	st, err := inv.Store.Prune(ctx, now)
+	if err != nil {
+		inv.Log.Warn("pruning old data failed", "err", err)
+		return
+	}
+	if st.Devices+st.Events+st.History > 0 {
+		inv.Log.Info("pruned old data", "devices", st.Devices, "events", st.Events, "history", st.History)
+	}
+}
+
 // FlushPending raises the held-back "new device" alerts for IP-only
 // devices that are still unidentified. Call it at the end of each cycle.
 func (inv *Inventory) FlushPending() {
