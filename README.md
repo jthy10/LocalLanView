@@ -22,10 +22,15 @@ binary, a web dashboard, and nothing ever leaves your network.
 
 ## Quick start
 
-Download a binary from Releases, or build it (below), then:
+Download the binary for your OS from Releases, or build it (below).
+Release files are named `LocalLanView-<version>-<os>-<arch>`. On Linux
+and macOS, check the download against `SHA256SUMS`, make it executable
+and run it:
 
 ```sh
-./LocalLanView
+sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+chmod +x LocalLanView-v*-linux-amd64
+./LocalLanView-v*-linux-amd64
 ```
 
 It opens `http://127.0.0.1:8787`. The first run prints a random password
