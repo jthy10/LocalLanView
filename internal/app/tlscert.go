@@ -54,10 +54,10 @@ func selfSignedCert(dir string, ips []net.IP) (tls.Certificate, string, error) {
 	if err != nil {
 		return tls.Certificate{}, "", err
 	}
-	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb}), 0o600); err != nil {
+	if err := writeFileReplace(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb}), 0o600); err != nil {
 		return tls.Certificate{}, "", err
 	}
-	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
+	if err := writeFileReplace(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644); err != nil {
 		return tls.Certificate{}, "", err
 	}
 	c, err := tls.LoadX509KeyPair(certPath, keyPath)

@@ -111,16 +111,20 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	icmp := icmpsweep.Open(nw.IP, priv.Elevated)
 
 	// 4. Data directory and database.
-	dataDir := cfg.DataDir
-	if dataDir == "" {
+	dataDir, defaultDir := cfg.DataDir, cfg.DataDir == ""
+	if defaultDir {
 		if dataDir, err = defaultDataDir(); err != nil {
 			return fmt.Errorf("finding a data directory: %w (use -data-dir)", err)
 		}
 	}
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+	createdDirs, err := makeDataDir(dataDir)
+	if err != nil {
 		return fmt.Errorf("creating data directory: %w", err)
 	}
-	os.Chmod(dataDir, 0o700)
+	if defaultDir || len(createdDirs) > 0 {
+		// Leave the permissions of a directory the user picked alone.
+		os.Chmod(dataDir, 0o700)
+	}
 	st, err := store.Open(filepath.Join(dataDir, "locallanview.db"))
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
@@ -182,9 +186,10 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 
 	// 9. Drop root if we came in through sudo; sockets stay usable.
 	if uid, gid, ok := privilege.SudoUser(); ok {
-		chownTree(dataDir, uid, gid)
+		handBack(dataDir, createdDirs, defaultDir, uid, gid)
 		if dropped, err := privilege.DropSudo(); err != nil {
-			log.Warn("could not drop root privileges", "err", err)
+			// Carrying on would run every network parser as root.
+			return fmt.Errorf("could not drop root privileges: %w", err)
 		} else if dropped {
 			log.Info("dropped root privileges", "uid", uid)
 		}
