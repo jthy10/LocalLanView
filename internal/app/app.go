@@ -404,11 +404,9 @@ func consoleHosts(extra []string, tlsCfg *tls.Config) []string {
 func consoleURL(a *net.TCPAddr, tls bool) string {
 	host := a.IP
 	if host.IsUnspecified() {
-		if host.To4() != nil {
-			host = net.IPv4(127, 0, 0, 1)
-		} else {
-			host = net.IPv6loopback
-		}
+		// Go reports a 0.0.0.0 listener as [::], and a [::] one takes IPv4
+		// too, so 127.0.0.1 reaches either.
+		host = net.IPv4(127, 0, 0, 1)
 	}
 	scheme := "http"
 	if tls {
