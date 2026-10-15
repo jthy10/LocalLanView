@@ -38,6 +38,9 @@ type Server struct {
 	// AllowedHosts are extra host names the console answers to when it
 	// isn't loopback-only (the machine's name, certificate names, -allow-host).
 	AllowedHosts []string
+	// SetLAN opens the console to the LAN or closes it again. It returns
+	// the console's new addresses; the move itself happens just after.
+	SetLAN func(ctx context.Context, on bool) (any, error)
 	// OnPasswordChange is called after a successful password change.
 	OnPasswordChange func(generated bool)
 	// StreamPing is how often the event stream pings and rechecks the
@@ -72,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/events/ack", s.authed(s.handleAck))
 	mux.Handle("POST /api/scan", s.authed(s.handleScan))
 	mux.Handle("POST /api/password", s.authed(s.handlePassword))
+	mux.Handle("POST /api/console", s.authed(s.handleConsole))
 	mux.Handle("GET /api/export", s.authed(s.handleExport))
 	mux.Handle("GET /api/stream", s.authed(s.handleStream))
 	mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +277,26 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request, _ *auth.Se
 func (s *Server) handleScan(w http.ResponseWriter, r *http.Request, _ *auth.Session) {
 	s.ScanNow()
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "scan requested"})
+}
+
+func (s *Server) handleConsole(w http.ResponseWriter, r *http.Request, _ *auth.Session) {
+	var req struct {
+		LAN *bool `json:"lan"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LAN == nil {
+		writeError(w, http.StatusBadRequest, "bad request")
+		return
+	}
+	if s.SetLAN == nil {
+		writeError(w, http.StatusNotImplemented, "not available")
+		return
+	}
+	info, err := s.SetLAN(r.Context(), *req.LAN)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request, sess *auth.Session) {

@@ -64,6 +64,7 @@ export async function render(view) {
             ["Listening on", mono(s.console.addr)],
             ["HTTPS", s.console.tls ? h("span", { class: "badge up" }, icon("lock"), "On") : h("span", { class: "badge" }, "Off")],
             ["Exposure", s.console.loopback ? "This machine only" : h("span", { class: "badge warn" }, "Reachable from the LAN")],
+            ...(s.console.lanUrl ? [["Other devices", h("a", { class: "mono", href: s.console.lanUrl }, s.console.lanUrl)]] : []),
             ["Database", mono(s.dbPath)],
             ["Version", mono(s.version)],
           ]))),
