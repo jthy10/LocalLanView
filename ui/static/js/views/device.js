@@ -6,6 +6,10 @@ import { setCrumbs } from "../main.js";
 
 let tab = "overview";
 let currentId = null;
+// Unsaved name and notes per device. Every save redraws the page from the
+// server, so without these, saving one field (or a tag, or the type) wiped
+// what you were still typing in the others.
+const drafts = new Map();
 
 export async function render(view, r) {
   if (r.id !== currentId) { tab = "overview"; currentId = r.id; }
@@ -31,6 +35,11 @@ function draw(view, id, data) {
   const save = async (fields, msg) => {
     try {
       await api("PATCH", "/api/devices/" + id, fields);
+      const draft = drafts.get(id);
+      if (draft) {
+        for (const k of Object.keys(fields)) delete draft[k];
+        if (!Object.keys(draft).length) drafts.delete(id);
+      }
       if (msg) toast(msg);
       await loadDevices();
       draw(view, id, await api("GET", "/api/devices/" + id));
@@ -64,7 +73,7 @@ function draw(view, id, data) {
       type: "button", role: "tab", class: tab === key ? "on" : null, "aria-selected": tab === key ? "true" : "false",
       onclick: () => showTab(key),
     }, t, n !== undefined ? h("span", { class: "n" }, n) : null)));
-    body.replaceChildren(TAB_RENDER[k](d, data, save));
+    body.replaceChildren(TAB_RENDER[k](d, data, save, id));
   };
 
   view.replaceChildren(
@@ -100,7 +109,7 @@ const panel = (title, ic, body, right) => h("section", { class: "panel" },
 const kv = (pairs) => h("dl", { class: "kv" }, pairs.filter(Boolean).map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
 
 const TAB_RENDER = {
-  overview(d, data, save) {
+  overview(d, data, save, id) {
     const conf = d.typeOverride ? "high" : d.typeConfidence;
     return h("div", { class: "cols" },
       h("div", { class: "stack" },
@@ -124,7 +133,7 @@ const TAB_RENDER = {
           d.typeOverride ? h("p", { class: "hint" }, "You've set this device to " + d.typeOverride + ", which overrides the guess.") : null,
         ), d.typeOverride ? "overridden" : null),
       ),
-      h("div", { class: "stack" }, labelsPanel(d, save)),
+      h("div", { class: "stack" }, labelsPanel(d, save, id)),
     );
   },
 
@@ -177,31 +186,47 @@ const TAB_RENDER = {
   },
 };
 
-function labelsPanel(d, save) {
-  const nameInput = h("input", { type: "text", value: d.customName, placeholder: d.hostname || label(d), maxlength: "100", "aria-label": "Name" });
-  const typeSel = h("select", { "aria-label": "Type", onchange: (e) => save({ typeOverride: e.target.value }, "Type updated") },
+function labelsPanel(d, save, id) {
+  const draft = drafts.get(id) || {};
+  const remember = (k, saved) => (e) => {
+    const cur = drafts.get(id) || {};
+    if (e.target.value === saved) delete cur[k]; else cur[k] = e.target.value;
+    if (Object.keys(cur).length) drafts.set(id, cur); else drafts.delete(id);
+  };
+  const nameInput = h("input", {
+    type: "text", id: "dev-name", value: draft.customName ?? d.customName, placeholder: d.hostname || label(d), maxlength: "100",
+    oninput: remember("customName", d.customName),
+    onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); save({ customName: nameInput.value }, "Name saved"); } },
+  });
+  const typeSel = h("select", { id: "dev-type", onchange: (e) => save({ typeOverride: e.target.value }, "Type updated") },
     h("option", { value: "" }, "Automatic (" + d.type + ")"),
     TYPES.map((t) => h("option", { value: t, selected: d.typeOverride === t }, t)));
-  const notes = h("textarea", { placeholder: "Where it lives, who owns it…", maxlength: "4000", "aria-label": "Notes" }, d.notes || "");
+  const notes = h("textarea", {
+    id: "dev-notes", placeholder: "Where it lives, who owns it…", maxlength: "4000",
+    oninput: remember("notes", d.notes || ""),
+  }, draft.notes ?? (d.notes || ""));
   const tagInput = h("input", {
-    type: "text", class: "tag-input", placeholder: "Add tag…", maxlength: "40", "aria-label": "Add tag",
+    type: "text", id: "dev-tag", class: "tag-input", placeholder: "Add tag…", maxlength: "40",
+    value: draft.tag ?? "",
+    oninput: remember("tag", ""),
     onkeydown: (e) => {
       if (e.key === "Enter" && e.target.value.trim()) {
         e.preventDefault();
+        remember("tag", e.target.value)(e); // the tag is being saved; don't keep it as a draft
         save({ tags: [...d.tags, e.target.value.trim()] });
       }
     },
   });
   return panel("Labels", "tag", h("div", { class: "panel-body" },
-    h("div", { class: "field" }, h("label", {}, "Name"), h("div", { class: "inline" }, nameInput,
+    h("div", { class: "field" }, h("label", { for: "dev-name" }, "Name"), h("div", { class: "inline" }, nameInput,
       h("button", { class: "btn", type: "button", onclick: () => save({ customName: nameInput.value }, "Name saved") }, "Save"))),
-    h("div", { class: "field" }, h("label", {}, "Type"), typeSel),
-    h("div", { class: "field" }, h("label", {}, "Tags"), h("div", { class: "tags" },
+    h("div", { class: "field" }, h("label", { for: "dev-type" }, "Type"), typeSel),
+    h("div", { class: "field" }, h("label", { for: "dev-tag" }, "Tags"), h("div", { class: "tags" },
       d.tags.map((t) => h("span", { class: "badge" }, t, h("button", {
         class: "tag-x", type: "button", "aria-label": "Remove tag " + t,
         onclick: () => save({ tags: d.tags.filter((x) => x !== t) }),
       }, icon("x")))), tagInput)),
-    h("div", { class: "field" }, h("label", {}, "Notes"), notes),
+    h("div", { class: "field" }, h("label", { for: "dev-notes" }, "Notes"), notes),
     h("button", { class: "btn", type: "button", onclick: () => save({ notes: notes.value }, "Notes saved") }, "Save notes"),
   ));
 }
