@@ -82,8 +82,21 @@ func TestOutOfScopeLocationIgnored(t *testing.T) {
 		Net:     &netinfo.Network{IP: netip.MustParseAddr("192.168.1.2"), Prefix: netip.MustParsePrefix("192.168.1.0/24")},
 		Limiter: scan.NewLimiter(1000),
 	}
-	_, _, err := fetchDescription(context.Background(), http.DefaultClient, env, "http://203.0.113.5/desc.xml")
+	from := netip.MustParseAddr("192.168.1.20")
+	_, _, err := fetchDescription(context.Background(), http.DefaultClient, env, from, "http://203.0.113.5/desc.xml")
 	if err == nil {
 		t.Fatal("expected out-of-scope location to be refused")
+	}
+}
+
+func TestLocationOnOtherHostIgnored(t *testing.T) {
+	env := &scan.Env{
+		Net:     &netinfo.Network{IP: netip.MustParseAddr("192.168.1.2"), Prefix: netip.MustParsePrefix("192.168.1.0/24")},
+		Limiter: scan.NewLimiter(1000),
+	}
+	from := netip.MustParseAddr("192.168.1.20")
+	_, _, err := fetchDescription(context.Background(), http.DefaultClient, env, from, "http://192.168.1.1:8080/admin")
+	if err == nil || !strings.Contains(err.Error(), "another host") {
+		t.Fatalf("expected a location on a neighbour to be refused, got %v", err)
 	}
 }

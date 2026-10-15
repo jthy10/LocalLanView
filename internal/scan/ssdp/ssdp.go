@@ -126,7 +126,7 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 			if ctx.Err() != nil {
 				break
 			}
-			d, port, err := fetchDescription(ctx, client, env, loc)
+			d, port, err := fetchDescription(ctx, client, env, ip, loc)
 			if err != nil {
 				continue
 			}
@@ -202,7 +202,11 @@ func (d description) all() []device {
 	return out
 }
 
-func fetchDescription(ctx context.Context, client *http.Client, env *scan.Env, loc string) (*description, int, error) {
+// fetchDescription reads the device description at loc. The URL must point
+// back at the device that sent it: otherwise any host on the subnet could
+// make us send requests to its neighbours, and their answers would be
+// filed under the wrong device.
+func fetchDescription(ctx context.Context, client *http.Client, env *scan.Env, from netip.Addr, loc string) (*description, int, error) {
 	u, err := url.Parse(loc)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, 0, errors.New("bad location")
@@ -210,6 +214,9 @@ func fetchDescription(ctx context.Context, client *http.Client, env *scan.Env, l
 	ip, err := netip.ParseAddr(u.Hostname())
 	if err != nil || !env.Net.InScope(ip) {
 		return nil, 0, errors.New("location is not on the local subnet")
+	}
+	if ip.Unmap() != from.Unmap() {
+		return nil, 0, errors.New("location points at another host")
 	}
 	port, _ := strconv.Atoi(u.Port())
 	if port == 0 {
