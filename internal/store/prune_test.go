@@ -69,3 +69,23 @@ func TestPrune(t *testing.T) {
 		t.Errorf("port scan marker of a pruned device kept: %v", err)
 	}
 }
+
+// A deleted device's id can be reused; the new device must not inherit the
+// "already port scanned" marker, or its first ports would raise alerts.
+func TestDeleteForgetsPortScan(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now()
+	id, _ := s.InsertDevice(ctx, &Device{Key: "mac:00:11:22:33:44:01", FirstSeen: now, LastSeen: now})
+	s.SetPorts(ctx, id, []Port{{Port: 22}}, now)
+	if err := s.DeleteDevice(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	id2, _ := s.InsertDevice(ctx, &Device{Key: "mac:00:11:22:33:44:02", FirstSeen: now, LastSeen: now})
+	if id2 != id {
+		t.Skipf("id not reused (%d, %d)", id, id2)
+	}
+	if scanned, _ := s.HasPortScan(ctx, id2); scanned {
+		t.Fatal("new device inherited the deleted device's port scan marker")
+	}
+}

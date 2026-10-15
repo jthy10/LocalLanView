@@ -261,7 +261,9 @@ func (s *Store) DeleteDevice(ctx context.Context, id int64) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	// SQLite can hand the id to the next device; it hasn't been scanned.
+	_, err = s.db.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, "portscan:"+itoa(int(id)))
+	return err
 }
 
 // MergeInto moves history from one device to another, then deletes from.
@@ -286,6 +288,9 @@ func (s *Store) MergeInto(ctx context.Context, from, into int64) error {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM devices WHERE id = ?`, from); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, "portscan:"+itoa(int(from))); err != nil {
 		return err
 	}
 	return tx.Commit()
