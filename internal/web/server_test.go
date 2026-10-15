@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -156,6 +157,38 @@ func TestLockout(t *testing.T) {
 	resp := e.do(t, "POST", "/api/login", map[string]string{"user": "admin", "password": "Sup3r-Secret-Pass"}, false)
 	if resp.StatusCode != 429 {
 		t.Fatalf("expected lockout, got %d", resp.StatusCode)
+	}
+}
+
+func TestLockoutConcurrent(t *testing.T) {
+	e := setup(t, false)
+	codes := make(chan int, 40)
+	var wg sync.WaitGroup
+	for i := 0; i < cap(codes); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req, _ := http.NewRequest("POST", e.srv.URL+"/api/login", strings.NewReader(`{"user":"admin","password":"wrong"}`))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			resp.Body.Close()
+			codes <- resp.StatusCode
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	checked := 0
+	for c := range codes {
+		if c == 401 {
+			checked++
+		}
+	}
+	if checked > 10 {
+		t.Fatalf("%d concurrent guesses were checked, want at most 10", checked)
 	}
 }
 

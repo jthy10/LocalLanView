@@ -10,7 +10,7 @@ runs, and when it's around. Treat its database and console accordingly.
 | Someone else on the LAN opens the console | Binds to `127.0.0.1` by default. Binding anywhere else requires a password you set yourself (12+ chars, checked for strength), and prints a warning unless TLS is on. |
 | Weak or default credentials | No default password. First run generates a random one, prints it once, and stores only an argon2id hash. |
 | Password leaking via `ps` or shell history | No `-password` flag. Use `-password-file`, `LOCALLANVIEW_PASSWORD` or the prompt. |
-| Brute-force login | Per-address lockout after 10 failures in 15 minutes, a global lockout after 50, plus growing delays. |
+| Brute-force login | Per-client lockout after 10 failures in 15 minutes (IPv6 clients by /64), a global lockout after 50 that doesn't apply to logins from the machine itself, plus growing delays. Attempts count as soon as they start, and only two password hashes run at once. |
 | Cross-site request forgery | `SameSite=Strict` cookies, a per-session CSRF token on every state-changing request, and an Origin check. Login only accepts JSON. |
 | DNS rebinding against the loopback console | Requests with a non-loopback `Host` header are rejected when bound to loopback. |
 | XSS through device names, banners, TXT records | The UI never uses `innerHTML` for data. Strict CSP: `script-src 'self'`, no inline script or style. |

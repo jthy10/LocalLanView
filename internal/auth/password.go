@@ -23,13 +23,23 @@ const (
 	saltLen      = 16
 )
 
+// hashSlots caps how many argon2 runs happen at once. Each one takes
+// argonMemory, so without a cap a burst of logins could exhaust RAM.
+var hashSlots = make(chan struct{}, 2)
+
+func idKey(pw, salt []byte, t, m uint32, p uint8, n uint32) []byte {
+	hashSlots <- struct{}{}
+	defer func() { <-hashSlots }()
+	return argon2.IDKey(pw, salt, t, m, p, n)
+}
+
 // HashPassword returns a PHC-style argon2id string.
 func HashPassword(pw string) (string, error) {
 	salt := make([]byte, saltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key := idKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(key)), nil
@@ -62,7 +72,7 @@ func VerifyPassword(pw, encoded string) (bool, error) {
 	if err != nil {
 		return false, errBadHash
 	}
-	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(want)))
+	got := idKey([]byte(pw), salt, t, m, p, uint32(len(want)))
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 

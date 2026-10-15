@@ -169,12 +169,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "cross-site login refused")
 		return
 	}
-	ip := clientIP(r)
-	if ok, wait := s.Limiter.Allow(ip); !ok {
-		w.Header().Set("Retry-After", itoa(int(wait.Seconds())+1))
-		writeError(w, http.StatusTooManyRequests, "too many failed logins; try again in "+wait.Round(time.Minute).String())
-		return
-	}
 	var req struct {
 		User     string `json:"user"`
 		Password string `json:"password"`
@@ -183,7 +177,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad request")
 		return
 	}
-	if d := s.Limiter.Delay(ip); d > 0 {
+	ip := clientIP(r)
+	d := s.Limiter.Delay(ip)
+	done, wait := s.Limiter.Begin(ip)
+	if done == nil {
+		w.Header().Set("Retry-After", itoa(int(wait.Seconds())+1))
+		writeError(w, http.StatusTooManyRequests, "too many failed logins; try again in "+wait.Round(time.Minute).String())
+		return
+	}
+	if d > 0 {
 		time.Sleep(d)
 	}
 	creds, err := s.Store.Credentials(r.Context())
@@ -193,12 +195,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, _ := auth.VerifyPassword(req.Password, hash)
 	if !ok || err != nil || req.User != user {
-		s.Limiter.Fail(ip)
+		done(false)
 		s.Log.Warn("failed login", "remote", ip, "user", req.User)
 		writeError(w, http.StatusUnauthorized, "wrong username or password")
 		return
 	}
-	s.Limiter.Success(ip)
+	done(true)
 	sess := s.Sessions.Create(w, user)
 	writeJSON(w, http.StatusOK, map[string]any{"user": sess.User, "csrf": sess.CSRF, "generatedPassword": creds.Generated})
 }
@@ -248,16 +250,17 @@ func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request, sess *au
 		writeError(w, http.StatusInternalServerError, "no credentials")
 		return
 	}
-	ip := clientIP(r)
-	if ok, _ := s.Limiter.Allow(ip); !ok {
+	done, _ := s.Limiter.Begin(clientIP(r))
+	if done == nil {
 		writeError(w, http.StatusTooManyRequests, "too many failed attempts")
 		return
 	}
 	if ok, _ := auth.VerifyPassword(req.Current, creds.Hash); !ok {
-		s.Limiter.Fail(ip)
+		done(false)
 		writeError(w, http.StatusForbidden, "current password is wrong")
 		return
 	}
+	done(true)
 	if err := auth.CheckStrength(req.New, creds.User); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

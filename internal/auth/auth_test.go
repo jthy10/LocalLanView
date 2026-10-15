@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,5 +108,57 @@ func TestLoginLimiter(t *testing.T) {
 	}
 	if ok, _ := l.Allow("9.9.9.9"); ok {
 		t.Fatal("global lockout should apply")
+	}
+}
+
+func TestLoginLimiterCountsInFlight(t *testing.T) {
+	l := NewLoginLimiter()
+	admitted := 0
+	for i := 0; i < 30; i++ {
+		if done, _ := l.Begin("1.2.3.4"); done != nil {
+			admitted++ // never finished: still hashing
+		}
+	}
+	if admitted != l.MaxPerIP {
+		t.Fatalf("admitted %d concurrent attempts, want %d", admitted, l.MaxPerIP)
+	}
+}
+
+func TestLoginLimiterSuccessUndoesReservation(t *testing.T) {
+	l := NewLoginLimiter()
+	for i := 0; i < 20; i++ {
+		done, _ := l.Begin("1.2.3.4")
+		if done == nil {
+			t.Fatalf("attempt %d refused after successful logins", i)
+		}
+		done(true)
+	}
+	if n := len(l.global.times); n != 0 {
+		t.Fatalf("global failures = %d after only successes", n)
+	}
+}
+
+func TestLoginLimiterGrouping(t *testing.T) {
+	l := NewLoginLimiter()
+	for i := 0; i < 10; i++ {
+		l.Fail(fmt.Sprintf("2001:db8:1:2::%x", i+1))
+	}
+	if ok, _ := l.Allow("2001:db8:1:2:abcd::1"); ok {
+		t.Fatal("addresses in one IPv6 /64 should share a limit")
+	}
+	if ok, _ := l.Allow("2001:db8:1:3::1"); !ok {
+		t.Fatal("another /64 should not be locked")
+	}
+	for i := 0; i < 50; i++ {
+		l.Fail(fmt.Sprintf("10.0.%d.%d", i/200, i%200))
+	}
+	if ok, _ := l.Allow("10.9.9.9"); ok {
+		t.Fatal("global lockout should apply to LAN clients")
+	}
+	if ok, _ := l.Allow("127.0.0.1"); !ok {
+		t.Fatal("global lockout should not lock out loopback")
+	}
+	if ok, _ := l.Allow("::1"); !ok {
+		t.Fatal("global lockout should not lock out loopback")
 	}
 }
