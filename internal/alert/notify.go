@@ -30,7 +30,14 @@ func Notify(title, body string) error {
 		cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
 		cmd.Env = append(os.Environ(), "LLV_TITLE="+title, "LLV_BODY="+body)
 	default:
-		cmd = exec.CommandContext(ctx, "notify-send", "--app-name=LocalLanView", title, body)
+		cmd = exec.CommandContext(ctx, "notify-send", notifySendArgs(title, body)...)
 	}
 	return cmd.Run()
+}
+
+// notifySendArgs ends the options with "--": GLib picks up options anywhere
+// on the command line, so a device named "-u critical" would otherwise be
+// read as flags.
+func notifySendArgs(title, body string) []string {
+	return []string{"--app-name=LocalLanView", "--", title, body}
 }

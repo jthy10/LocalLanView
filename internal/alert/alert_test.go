@@ -60,3 +60,10 @@ func TestWebhookSend(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestNotifySendArgsEndOptions(t *testing.T) {
+	got := notifySendArgs("LocalLanView", "-u critical")
+	if len(got) != 4 || got[1] != "--" || got[3] != "-u critical" {
+		t.Fatalf("got %q", got)
+	}
+}
