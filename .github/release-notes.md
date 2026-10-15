@@ -1,18 +1,25 @@
-Security and reliability fixes. Everyone should update.
+Security fixes, a tidier database and a more usable dashboard.
+
+**Upgrading:** if you reach the console on the LAN by a name your router or DNS gives it (like `nas.lan`), add that name with `-allow-host nas.lan`. IP addresses, `localhost`, this machine's own name and TLS certificate names keep working without it.
 
 **Security**
-- Built with Go 1.26.9 and golang.org/x/net v0.60.0. Earlier releases were built with Go 1.26.0, which has known vulnerabilities in HTTP, TLS, XML and header parsing that a device on your network could reach.
-- A burst of parallel login attempts could get far more password guesses than the lockout allows, and use gigabytes of memory doing it. Attempts now count as soon as they start and only two password checks run at once. A flood of guesses from the network no longer locks you out of the console on the machine itself.
-- A device could take over another device's record (the router's, for example) by reporting its MAC address over NetBIOS. That MAC is now only shown, never used to identify the device.
-- Under `sudo`, LocalLanView no longer hands the whole `-data-dir` tree to your user, no longer leaves `~/.config` owned by root, and exits if it can't drop root.
+- When bound to the LAN, the console now checks the `Host` header, so a web page on a name that rebinds to this machine can't talk to it. New `-allow-host` flag for extra names.
+- Started as root directly, or through `doas` or `pkexec`, LocalLanView now drops root just like under `sudo`. New `-run-as` flag names the account to switch to; without one it warns, on the console and the Capabilities page, that it is staying root.
+- A device on the network could make the scanner fetch an SSDP description from another host and file it under the wrong device. The description URL must now point back at the device that sent it.
+- Desktop notifications (`notify-send`) no longer read a device name starting with `-` as options.
 
 **Fixes**
-- One mDNS packet with a malformed name stopped mDNS discovery for every scan. It's now handled.
-- When a new device got an address an old, offline device used to have, you'd get a false "ARP spoofing" alert and the old device showed as online.
-- A known device getting a new address no longer raises a "New device" alert.
-- In the dashboard, a slow page could draw over the page you had already moved to.
-- `SHA256SUMS` listed a wrong checksum for itself, so `sha256sum -c` reported a failure. Fixed.
-- `-version` works even when other flags have bad values. The `-webhook` and `-notify` help now says they send every alert.
+- Old data is now pruned once a day: alerts after 90 days (10,000 at most), old addresses, names, services and closed ports after 180 days, devices gone for a year, and randomized-MAC or IP-only devices gone for 30 days. Devices you've named, tagged, noted, trusted or retyped are never removed.
+- With a VPN up, or with Docker installed, auto-detection could scan the tunnel or `docker0` instead of your LAN. It now skips those and prefers the interface with your default route.
+- Vendor names are matched as whole words, so "...Manufacturing" and "...Engineering" devices are no longer typed as Ring cameras.
+- A newly found device could inherit a deleted device's port-scan history and raise new-port alerts for everything on its first scan.
+
+**Dashboard**
+- The device list shows 100 devices per page, so big networks stay fast.
+- When your session expires or the server goes away, the dashboard says so instead of freezing, and you're returned to the same page after signing in.
+- Saving one field on a device page no longer throws away notes or tags you're still typing.
+- Long device names wrap instead of making the page scroll sideways on phones.
+- Accessibility: better contrast in both themes, keyboard-operable sorting and tabs, labelled fields and buttons, a skip link, and page titles that follow the page.
 
 Grab the binary for your OS below and check it: `sha256sum -c --ignore-missing SHA256SUMS`. On Linux/macOS: `chmod +x` first. Run as root/admin (or `setcap cap_net_raw+ep` on Linux) for raw ARP and ICMP; it still works without, just sees less.
 
