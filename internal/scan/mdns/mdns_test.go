@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,5 +95,57 @@ func TestHelpers(t *testing.T) {
 	back, ok := parseReverse(reverseName(ip))
 	if !ok || back != ip {
 		t.Errorf("reverse round trip: %v %v", back, ok)
+	}
+}
+
+// A device can put any bytes in a name. Invalid UTF-8 used to grow under
+// strings.ToLower, which panicked in ptrQ and in guessType's slicing and
+// threw away everything the collector found that cycle.
+func TestHostileNames(t *testing.T) {
+	ff := strings.Repeat("\xff", 60)
+	badType := "_" + ff + "." + ff + "._tcp.local."
+	badInst := ff + "K." + ff + "._" + strings.Repeat("\xff", 20) + "._tcp.local." // U+212A KELVIN SIGN lowers to 'k'
+	hdr := func(n string, typ dnsmessage.Type) dnsmessage.ResourceHeader {
+		return dnsmessage.ResourceHeader{Name: name(n), Type: typ, Class: dnsmessage.ClassINET, TTL: 120}
+	}
+	m := dnsmessage.Message{
+		Header: dnsmessage.Header{Response: true},
+		Answers: []dnsmessage.Resource{
+			{Header: hdr(enumType, dnsmessage.TypePTR), Body: &dnsmessage.PTRResource{PTR: name(badType)}},
+			{Header: hdr(badInst, dnsmessage.TypeSRV), Body: &dnsmessage.SRVResource{Target: name(ff + ".local."), Port: 80}},
+			{Header: hdr("Printer._ipp._tcp.local.", dnsmessage.TypeSRV), Body: &dnsmessage.SRVResource{Target: name("printer.local."), Port: 631}},
+		},
+	}
+	pkt, err := m.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := &state{
+		types:     map[string]bool{},
+		instances: map[string]*instance{},
+		hostIPs:   map[string]netip.Addr{},
+		ipNames:   map[netip.Addr]string{},
+		seen:      map[netip.Addr]bool{},
+	}
+	src := netip.MustParseAddr("192.168.1.66")
+	for _, typ := range st.handle(pkt, src) {
+		ptrQs(typ) // must not panic
+	}
+	env := &scan.Env{Net: &netinfo.Network{IP: netip.MustParseAddr("192.168.1.2"), Prefix: netip.MustParsePrefix("192.168.1.0/24")}}
+	obs := st.observations(env)
+	if len(obs) != 1 {
+		t.Fatalf("want 1 observation, got %+v", obs)
+	}
+	found := false
+	for _, s := range obs[0].Services {
+		if s.Type == "_ipp._tcp" && s.Name == "Printer" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the well-formed service was lost: %+v", obs[0].Services)
+	}
+	if got := ptrQs(strings.Repeat("a", 300) + ".local."); got != nil {
+		t.Fatalf("ptrQs accepted an over-long name: %v", got)
 	}
 }

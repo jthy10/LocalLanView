@@ -84,6 +84,10 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 		return err
 	}
 	defer conn.Close()
+	// Stops the reverse-lookup goroutine when Run returns, so it doesn't
+	// keep spending the shared probe budget after this collector is done.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	pc := ipv4.NewPacketConn(conn)
 	_ = pc.SetMulticastInterface(&env.Net.Iface)
 	_ = pc.SetMulticastTTL(255)
@@ -105,10 +109,10 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 		}
 	}
 
-	qs := []dnsmessage.Question{ptrQ(enumType)}
+	qs := ptrQs(enumType)
 	for _, t := range CommonTypes {
 		st.types[t+".local."] = true
-		qs = append(qs, ptrQ(t+".local."))
+		qs = append(qs, ptrQs(t+".local.")...)
 	}
 	send(gaddr, qs)
 
@@ -120,7 +124,7 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 				if ctx.Err() != nil {
 					return
 				}
-				send(&net.UDPAddr{IP: ip.AsSlice(), Port: uport}, []dnsmessage.Question{ptrQ(reverseName(ip))})
+				send(&net.UDPAddr{IP: ip.AsSlice(), Port: uport}, ptrQs(reverseName(ip)))
 			}
 		}()
 	}
@@ -144,7 +148,7 @@ func (c *Collector) Run(ctx context.Context, env *scan.Env, emit func(scan.Obser
 		if len(newTypes) > 0 {
 			var qs []dnsmessage.Question
 			for _, t := range newTypes {
-				qs = append(qs, ptrQ(t))
+				qs = append(qs, ptrQs(t)...)
 			}
 			send(gaddr, qs)
 		}
@@ -164,14 +168,14 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 	st.seen[src] = true
 	rrs := append(append(m.Answers, m.Additionals...), m.Authorities...)
 	for _, rr := range rrs {
-		name := strings.ToLower(rr.Header.Name.String())
+		name := asciiLower(rr.Header.Name.String())
 		rawName := rr.Header.Name.String()
 		switch b := rr.Body.(type) {
 		case *dnsmessage.PTRResource:
 			target := b.PTR.String()
 			switch {
 			case name == enumType:
-				t := strings.ToLower(target)
+				t := asciiLower(target)
 				if !st.types[t] {
 					st.types[t] = true
 					newTypes = append(newTypes, t)
@@ -185,7 +189,7 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 			}
 		case *dnsmessage.SRVResource:
 			in := st.inst(rawName, src)
-			in.host = strings.ToLower(b.Target.String())
+			in.host = asciiLower(b.Target.String())
 			in.hostLabel = b.Target.String()
 			in.port = int(b.Port)
 		case *dnsmessage.TXTResource:
@@ -201,7 +205,7 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 				if len(v) > 128 {
 					v = v[:128]
 				}
-				in.txt[strings.ToLower(k)] = v
+				in.txt[asciiLower(k)] = v
 			}
 		case *dnsmessage.AResource:
 			ip := netip.AddrFrom4(b.A)
@@ -215,7 +219,7 @@ func (st *state) handle(pkt []byte, src netip.Addr) (newTypes []string) {
 }
 
 func (st *state) inst(full string, src netip.Addr) *instance {
-	key := strings.ToLower(full)
+	key := asciiLower(full)
 	in, ok := st.instances[key]
 	if !ok {
 		in = &instance{name: full, txt: map[string]string{}, from: src}
@@ -283,7 +287,7 @@ func (st *state) observations(env *scan.Env) []scan.Observation {
 // guessType recovers the service type from an instance name like
 // "Office Printer._ipp._tcp.local." when no PTR record named it.
 func guessType(full string) string {
-	l := strings.ToLower(full)
+	l := asciiLower(full)
 	for _, proto := range []string{"._tcp.local.", "._udp.local."} {
 		i := strings.Index(l, proto)
 		if i < 0 {
@@ -299,7 +303,7 @@ func guessType(full string) string {
 }
 
 func instanceLabel(full, typ string) string {
-	if strings.HasSuffix(strings.ToLower(full), "."+strings.ToLower(typ)) {
+	if strings.HasSuffix(asciiLower(full), "."+asciiLower(typ)) {
 		full = full[:len(full)-len(typ)-1]
 	}
 	return strings.ReplaceAll(full, `\ `, " ")
@@ -310,12 +314,27 @@ func trimLocal(s string) string {
 	return strings.TrimSuffix(s, ".local")
 }
 
-func ptrQ(name string) dnsmessage.Question {
-	return dnsmessage.Question{
-		Name:  dnsmessage.MustNewName(name),
-		Type:  dnsmessage.TypePTR,
-		Class: dnsmessage.ClassINET,
+// ptrQs returns a PTR question for name, or none if name can't be encoded
+// (a device can advertise a type too long to ask about).
+func ptrQs(name string) []dnsmessage.Question {
+	n, err := dnsmessage.NewName(name)
+	if err != nil {
+		return nil
 	}
+	return []dnsmessage.Question{{Name: n, Type: dnsmessage.TypePTR, Class: dnsmessage.ClassINET}}
+}
+
+// asciiLower lowercases A-Z only. Names from the network may not be valid
+// UTF-8, and strings.ToLower would change their length, breaking any
+// index taken from the lowered copy and used on the original.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return string(b)
 }
 
 func query(qs []dnsmessage.Question) ([]byte, error) {
