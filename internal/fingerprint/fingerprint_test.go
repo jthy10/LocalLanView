@@ -32,11 +32,34 @@ func TestClassify(t *testing.T) {
 		{"netbios pc", Signals{Vendor: "Micro-Star INTL CO., LTD.", Sources: []string{"arp", "netbios"}, Hostnames: []string{"GAMING-PC"}}, "Windows PC", "medium"},
 		{"private MAC only", Signals{Private: true}, "Unknown", "none"},
 		{"gateway", Signals{Gateway: true, Private: true}, "Router", "high"},
+		{"ring doorbell", Signals{Vendor: "Ring LLC"}, "Camera", "medium"},
+		{"sharp tv", Signals{Vendor: "Sharp Corporation", SSDP: []string{"urn:schemas-upnp-org:device:MediaRenderer:1"}}, "Smart TV", "medium"},
 	}
 	for _, tt := range tests {
 		g := e.Classify(tt.s)
 		if g.Type != tt.want || g.Confidence != tt.conf {
 			t.Errorf("%s: got %s/%s (score %d, %v), want %s/%s", tt.name, g.Type, g.Confidence, g.Score, g.Reasons, tt.want, tt.conf)
+		}
+	}
+}
+
+// Vendor terms must match whole words, not pieces of unrelated names.
+func TestVendorWholeWords(t *testing.T) {
+	e := Default()
+	for vendor, notType := range map[string]string{
+		"Murata Manufacturing Co., Ltd.": "Camera",        // "ring"
+		"Adamson Systems Engineering":    "Camera",        // "ring"
+		"Vivotek, Inc.":                  "Phone",         // "vivo"
+		"Aztech Electronics Pte Ltd":     "Router",        // "zte"
+		"Carlo Gavazzi, Inc.":            "Camera",        // "arlo"
+		"Apacer Technology Inc.":         "Windows PC",    // "acer"
+		"HomeWizard B.V.":                "IoT Device",    // "wiz"
+		"SonoSite, Inc.":                 "Smart Speaker", // "sonos"
+	} {
+		for _, r := range e.Rules {
+			if r.Type == notType && r.vendor != nil && r.vendor.MatchString(vendor) {
+				t.Errorf("%q matched the %s vendor rule", vendor, r.Type)
+			}
 		}
 	}
 }

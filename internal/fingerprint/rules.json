@@ -12,7 +12,7 @@
 
   {"type": "Printer", "weight": 8, "why": "advertises printing over mDNS", "mdns": ["_ipp._tcp", "_ipps._tcp", "_printer._tcp", "_pdl-datastream._tcp"]},
   {"type": "Printer", "weight": 5, "why": "printer ports open (IPP/JetDirect/LPD)", "anyPorts": [631, 9100, 515]},
-  {"type": "Printer", "weight": 4, "why": "vendor makes printers", "vendor": "brother|canon|epson|seiko epson|hewlett|hp inc|lexmark|kyocera|ricoh|xerox|konica|sharp corp|oki electric|zebra"},
+  {"type": "Printer", "weight": 4, "why": "vendor makes printers", "vendor": "brother|canon|epson|seiko epson|hewlett|hp inc|lexmark|kyocera|ricoh|xerox|konica|sharp corporation|oki electric|zebra"},
   {"type": "Printer", "weight": 3, "why": "SSDP describes a printer", "ssdp": "printer|Printer:"},
   {"type": "Printer", "weight": 2, "why": "scanner service (usually a multifunction printer)", "mdns": ["_scanner._tcp", "_uscan._tcp"]},
 
@@ -68,7 +68,7 @@
   {"type": "Game Console", "weight": 6, "why": "console vendor", "vendor": "nintendo|sony interactive|microsoft.*xbox"},
   {"type": "Game Console", "weight": 6, "why": "console hostname", "hostname": "(xbox|playstation|ps[345]|nintendo|switch)"},
 
-  {"type": "Camera", "weight": 6, "why": "camera vendor", "vendor": "hikvision|dahua|axis communications|amcrest|reolink|wyze|arlo|ring|foscam|uniview|hanwha|vivotek|eufy|blink"},
+  {"type": "Camera", "weight": 6, "why": "camera vendor", "vendor": "hikvision|dahua|axis communications|amcrest|reolink|wyze|arlo|ring llc|foscam|uniview|hanwha|vivotek|eufy|blink"},
   {"type": "Camera", "weight": 4, "why": "RTSP stream open", "anyPorts": [554]},
   {"type": "Camera", "weight": 4, "why": "camera in name or model", "text": "camera|\\bcam\\b|doorbell|nvr|dvr"},
   {"type": "Camera", "weight": 3, "why": "camera hostname", "hostname": "(cam|camera|doorbell|nvr|ipc)"},

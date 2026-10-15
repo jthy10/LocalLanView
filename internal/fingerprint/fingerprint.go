@@ -42,7 +42,7 @@ type Rule struct {
 	Type     string   `json:"type"`
 	Weight   int      `json:"weight"`
 	Why      string   `json:"why"`
-	Vendor   string   `json:"vendor,omitempty"`   // regex, case-insensitive
+	Vendor   string   `json:"vendor,omitempty"`   // regex of whole words, case-insensitive
 	Hostname string   `json:"hostname,omitempty"` // regex
 	MDNS     []string `json:"mdns,omitempty"`     // any of these service types
 	Text     string   `json:"text,omitempty"`     // regex over mDNS TXT / SSDP strings
@@ -94,7 +94,11 @@ func Load(b []byte) (*Engine, error) {
 			re, err = regexp.Compile("(?i)" + s)
 			return re
 		}
-		r.vendor = compile(r.Vendor)
+		if r.Vendor != "" {
+			// Vendor terms are whole words: "ring" must not match
+			// "Manufacturing", nor "vivo" match "Vivotek".
+			r.vendor = compile(`\b(?:` + r.Vendor + `)\b`)
+		}
 		r.hostname = compile(r.Hostname)
 		r.text = compile(r.Text)
 		r.ssdp = compile(r.SSDP)
