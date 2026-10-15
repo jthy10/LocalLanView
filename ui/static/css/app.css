@@ -242,6 +242,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .banner a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 .view { width: 100%; max-width: 1440px; padding: 20px 24px 40px; }
+.page { display: contents; }
 .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-head .sub { color: var(--muted); margin-top: 2px; }
 .page-head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }

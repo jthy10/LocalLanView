@@ -14,6 +14,7 @@ export async function render(view, r) {
   try {
     data = await api("GET", "/api/devices/" + r.id);
   } catch (e) {
+    if (!view.isConnected) return;
     setCrumbs([{ text: "Devices", href: "#/devices" }, { text: "Not found" }]);
     view.replaceChildren(h("div", { class: "panel" },
       emptyState("unknown", e.status === 404 ? "This device no longer exists" : "Couldn't load device", e.status === 404 ? "It may have been forgotten." : e.message)));
@@ -23,6 +24,7 @@ export async function render(view, r) {
 }
 
 function draw(view, id, data) {
+  if (!view.isConnected) return; // navigated away while loading
   const d = data.device;
   setCrumbs([{ text: "Devices", href: "#/devices" }, { text: label(d) }]);
 

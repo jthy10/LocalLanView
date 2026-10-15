@@ -224,7 +224,12 @@ function route() {
   document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === navName));
   shell.classList.remove("nav-open");
   window.scrollTo(0, 0);
-  ROUTES[r.name].render($("#view"), r);
+  // Each navigation renders into a fresh element. A slow render from the
+  // page we just left then draws into a detached node instead of over
+  // this one, and views can test page.isConnected after an await.
+  const page = h("div", { class: "page" });
+  $("#view").replaceChildren(page);
+  ROUTES[r.name].render(page, r);
 }
 
 /* ---------- session ---------- */
