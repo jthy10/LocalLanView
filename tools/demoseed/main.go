@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -31,12 +32,27 @@ type demo struct {
 
 func main() {
 	dir := flag.String("data-dir", "demo", "data directory to create the database in")
+	force := flag.Bool("force", false, "seed even if the database already has real devices")
 	flag.Parse()
+	if isRealDataDir(*dir) {
+		log.Fatalf("%s is LocalLanView's real data directory; pick another -data-dir", *dir)
+	}
 	st, err := store.Open(filepath.Join(*dir, "locallanview.db"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.Setting(ctx, "demoseed"); err != nil && !*force {
+		if devs, err := st.Devices(ctx); err != nil {
+			log.Fatal(err)
+		} else if len(devs) > 0 {
+			log.Fatalf("%s already has %d devices that demoseed didn't make; use -force to mix fake ones in", st.Path(), len(devs))
+		}
+	}
+	if err := st.SetSetting(ctx, "demoseed", "1"); err != nil {
+		log.Fatal(err)
+	}
 	inv := &inventory.Inventory{Store: st, OUI: oui.Default(), FP: fingerprint.Default(),
 		Gateway: netip.MustParseAddr("192.168.1.1")}
 
@@ -77,7 +93,6 @@ func main() {
 		{ip: "192.168.1.120", mac: "6e:3f:01:aa:bb:cc", src: "arp"},
 	}
 
-	ctx := context.Background()
 	inv.SetBaseline(true)
 	for _, d := range devices {
 		t := time.Now().Add(-d.ago)
@@ -88,10 +103,33 @@ func main() {
 		inv.Observe(scan.Observation{Source: "ports", Time: t, IP: ip, Ports: d.ports, PortScan: true})
 	}
 	inv.SetBaseline(false)
-	st.SetSetting(ctx, "baseline_done", "1")
+	if err := st.SetSetting(ctx, "baseline_done", "1"); err != nil {
+		log.Fatal(err)
+	}
 
 	// A newcomer, so the alerts page has something to show.
 	mac, _ := net.ParseMAC("b0:be:76:01:02:03")
 	inv.Observe(scan.Observation{Source: "arp", IP: netip.MustParseAddr("192.168.1.133"), MAC: mac})
 	log.Printf("seeded %d devices into %s", len(devices)+1, st.Path())
+}
+
+// isRealDataDir reports whether dir is the directory LocalLanView uses by
+// default, so fake devices never end up in someone's real inventory.
+func isRealDataDir(dir string) bool {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return false
+	}
+	real, err1 := filepath.Abs(filepath.Join(base, "LocalLanView"))
+	got, err2 := filepath.Abs(dir)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	if r, err := filepath.EvalSymlinks(real); err == nil {
+		real = r
+	}
+	if g, err := filepath.EvalSymlinks(got); err == nil {
+		got = g
+	}
+	return real == got
 }
