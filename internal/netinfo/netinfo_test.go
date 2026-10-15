@@ -117,3 +117,44 @@ func TestDetectUnknownInterface(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestAutoOrder(t *testing.T) {
+	mac := net.HardwareAddr{0x02, 0, 0, 0, 0, 1}
+	up := net.FlagUp | net.FlagBroadcast
+	ifs := []net.Interface{
+		{Name: "lo", Flags: up | net.FlagLoopback},
+		{Name: "docker0", Flags: up, HardwareAddr: mac},
+		{Name: "br-1a2b3c", Flags: up, HardwareAddr: mac},
+		{Name: "enp5s0", Flags: up, HardwareAddr: mac},
+		{Name: "wlp3s0", Flags: up, HardwareAddr: mac},
+		{Name: "tun0", Flags: up | net.FlagPointToPoint},
+		{Name: "wg0", Flags: up},
+		{Name: "vEthernet (WSL)", Flags: up, HardwareAddr: mac},
+		{Name: "tailscale0", Flags: up},
+	}
+	names := func(ifs []net.Interface) string {
+		var s []string
+		for _, i := range ifs {
+			s = append(s, i.Name)
+		}
+		return strings.Join(s, ",")
+	}
+	gw := func(name string) bool { return name == "wlp3s0" }
+
+	// The VPN holds the default route; the Wi-Fi with a gateway wins.
+	got, skipped := autoOrder(ifs, "tun0", gw, false)
+	if names(got) != "wlp3s0,enp5s0" {
+		t.Errorf("order with VPN route: %s", names(got))
+	}
+	if strings.Join(skipped, ",") != "docker0,br-1a2b3c,tun0,wg0,vEthernet (WSL),tailscale0" {
+		t.Errorf("skipped: %v", skipped)
+	}
+	// The routed physical interface comes first.
+	if got, _ := autoOrder(ifs, "enp5s0", gw, false); names(got) != "enp5s0,wlp3s0" {
+		t.Errorf("order with wired route: %s", names(got))
+	}
+	// An explicit -subnet may live on a bridge, so keep them, last.
+	if got, _ := autoOrder(ifs, "", gw, true); !strings.HasPrefix(names(got), "wlp3s0,enp5s0,docker0") || len(got) != 8 {
+		t.Errorf("order with -subnet: %s", names(got))
+	}
+}

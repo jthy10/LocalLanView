@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sort"
+	"strings"
 )
 
 // MaxHosts caps the size of a scanned subnet (a /16).
@@ -21,7 +23,7 @@ type Network struct {
 
 // Detect picks the interface and subnet to scan. iface and subnet override
 // auto-detection; either may be empty/zero.
-func Detect(iface string, subnet netip.Prefix) (*Network, error) {
+func Detect(iface string, subnet netip.Prefix) (_ *Network, err error) {
 	ifs, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -34,7 +36,13 @@ func Detect(iface string, subnet netip.Prefix) (*Network, error) {
 		}
 		candidates = []net.Interface{*ifi}
 	} else {
-		candidates = preferRouted(ifs)
+		var skipped []string
+		candidates, skipped = autoOrder(ifs, routedName(ifs), hasGateway, subnet.IsValid())
+		defer func() {
+			if err != nil && len(skipped) > 0 {
+				err = fmt.Errorf("%w (skipped VPN/virtual interfaces: %s)", err, strings.Join(skipped, ", "))
+			}
+		}()
 	}
 
 	for _, ifi := range candidates {
@@ -132,25 +140,89 @@ func Broadcast(p netip.Prefix) netip.Addr {
 	return netip.AddrFrom4([4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 }
 
-// preferRouted puts the interface holding the default route first. A UDP
+// routedName returns the interface holding the default route. A UDP
 // "dial" only asks the kernel for a route; no packet is sent.
-func preferRouted(ifs []net.Interface) []net.Interface {
+func routedName(ifs []net.Interface) string {
 	c, err := net.Dial("udp4", "192.0.2.1:9") // TEST-NET-1, never actually contacted
 	if err != nil {
-		return ifs
+		return ""
 	}
 	local := c.LocalAddr().(*net.UDPAddr).IP
 	c.Close()
-	for i, ifi := range ifs {
+	for _, ifi := range ifs {
 		addrs, _ := ifi.Addrs()
 		for _, a := range addrs {
 			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.Equal(local) {
-				out := append([]net.Interface{ifi}, ifs[:i]...)
-				return append(out, ifs[i+1:]...)
+				return ifi.Name
 			}
 		}
 	}
-	return ifs
+	return ""
+}
+
+func hasGateway(name string) bool {
+	_, ok := Gateway(name)
+	return ok
+}
+
+// autoOrder ranks interfaces for auto-detection: the one with the default
+// route, then others with a gateway, then the rest. VPN tunnels and
+// virtual bridges (Docker, VMs, WSL) are left out, since a VPN often holds
+// the default route and a bridge is often listed first; with keepVirtual
+// (an explicit -subnet) they go last instead. It also returns the names it
+// left out.
+func autoOrder(ifs []net.Interface, routed string, gateway func(string) bool, keepVirtual bool) (out []net.Interface, skipped []string) {
+	var virtual []net.Interface
+	rank := func(ifi net.Interface) int {
+		switch {
+		case ifi.Name == routed:
+			return 0
+		case gateway(ifi.Name):
+			return 1
+		}
+		return 2
+	}
+	for _, ifi := range ifs {
+		if ifi.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if isVirtual(ifi) {
+			virtual = append(virtual, ifi)
+			if ifi.Flags&net.FlagUp != 0 {
+				skipped = append(skipped, ifi.Name)
+			}
+			continue
+		}
+		out = append(out, ifi)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return rank(out[i]) < rank(out[j]) })
+	if keepVirtual {
+		return append(out, virtual...), nil
+	}
+	return out, skipped
+}
+
+// virtualNames are name prefixes (Unix) and fragments of Windows adapter
+// names used by VPNs, containers and hypervisors.
+var virtualNames = []string{
+	"docker", "br-", "veth", "virbr", "vnet", "vmnet", "vboxnet", "lxcbr", "lxdbr", "cni", "flannel", "cali", "podman",
+	"tun", "tap", "wg", "utun", "ppp", "ipsec", "tailscale", "zt", "nordlynx", "proton", "anpi", "awdl", "llw",
+	"vethernet", "virtualbox", "vmware", "hyper-v", "wsl", "zerotier", "wireguard", "openvpn", "tap-windows", "wintun", "nordvpn", "mullvad",
+}
+
+// isVirtual reports whether ifi looks like a VPN tunnel or a virtual
+// bridge rather than the machine's own link to the LAN.
+func isVirtual(ifi net.Interface) bool {
+	if ifi.Flags&net.FlagPointToPoint != 0 || len(ifi.HardwareAddr) == 0 {
+		return true // tunnels have no MAC, so ARP can't work on them anyway
+	}
+	name := strings.ToLower(ifi.Name)
+	for _, v := range virtualNames {
+		if strings.HasPrefix(name, v) || (len(v) > 4 && strings.Contains(name, v)) {
+			return true
+		}
+	}
+	return false
 }
 
 func names(ifs []net.Interface) string {

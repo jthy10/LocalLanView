@@ -80,7 +80,7 @@ staying root. The Capabilities page shows which features are on and why.
 | `-run-as` | | Account to switch to when started as root without sudo |
 | `-data-dir` | per-user config dir | Database location |
 | `-scan-interval` | `5m` | Time between scans |
-| `-interface`, `-subnet` | auto | Override detection (subnet must be on the interface) |
+| `-interface`, `-subnet` | auto | Override detection (subnet must be on the interface). Auto-detection skips VPN tunnels and Docker/VM bridges |
 | `-probe-rate` | `100` | Max probe packets per second |
 | `-no-port-scan` | off | Skip TCP probes |
 | `-tls-cert`, `-tls-key` | | Serve HTTPS with your certificate |
