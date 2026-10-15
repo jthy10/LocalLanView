@@ -10,40 +10,91 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   VERSION: ${{ inputs.version || github.ref_name }}
 
+# A tag push and a manual run for the same version wait for each other.
+concurrency:
+  group: release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  release:
+  # Builds with a read-only token; nothing here can touch releases.
+  build:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+      exists: ${{ steps.ref.outputs.exists }}
     steps:
-      - uses: actions/checkout@v4
-      # Re-running for a version that's already out only refreshes its notes.
-      - name: Check for an existing release
-        id: existing
+      - name: Check the version
         run: |
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must look like v1.2.3, got: $VERSION"
+            exit 1
           fi
-      - name: Update release notes
-        if: steps.existing.outputs.found == 'true'
-        run: gh release edit "$VERSION" --notes-file .github/release-notes.md
-      - uses: actions/setup-go@v5
-        if: steps.existing.outputs.found != 'true'
+      # Build the tag if it exists, so a manual run can't publish binaries
+      # from some other commit under an existing version.
+      - name: Pick the commit to build
+        id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$VERSION" --jq .sha 2>/dev/null); then
+            echo "ref=$sha" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          fi
+          if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: steps.ref.outputs.exists != 'true'
         with:
           go-version-file: go.mod
-      - if: steps.existing.outputs.found != 'true'
+          cache: false
+      - if: steps.ref.outputs.exists != 'true'
         run: go test ./...
-      - if: steps.existing.outputs.found != 'true'
-        run: make dist VERSION=$VERSION
+      - if: steps.ref.outputs.exists != 'true'
+        run: make dist
+      # Notes come from the commit being released, so re-running an old
+      # version keeps that version's notes.
+      - run: mkdir -p dist && cp .github/release-notes.md dist/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: dist/
+          if-no-files-found: error
+
+  # Only this job can write, and it runs no project code.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REF: ${{ needs.build.outputs.ref }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+          path: dist
+      # Re-running for a version that's already out only refreshes its notes.
+      - name: Update release notes
+        if: needs.build.outputs.exists == 'true'
+        run: gh release edit "$VERSION" -R "$GITHUB_REPOSITORY" --notes-file dist/release-notes.md
       - name: Publish release
-        if: steps.existing.outputs.found != 'true'
+        if: needs.build.outputs.exists != 'true'
         run: |
-          gh release create "$VERSION" dist/* \
-            --target "$GITHUB_SHA" \
+          cd dist
+          sha256sum -c SHA256SUMS
+          gh release create "$VERSION" LocalLanView-* SHA256SUMS -R "$GITHUB_REPOSITORY" \
+            --target "$REF" \
             --title "LocalLanView $VERSION" \
-            --notes-file .github/release-notes.md
+            --notes-file release-notes.md
