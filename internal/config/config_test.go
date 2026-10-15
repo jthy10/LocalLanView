@@ -59,3 +59,13 @@ func TestParseSubnetMasked(t *testing.T) {
 		t.Fatalf("got %s", c.Subnet)
 	}
 }
+
+func TestParseVersionWins(t *testing.T) {
+	c, err := Parse([]string{"-version", "-mode", "bad", "-scan-interval", "1s"}, io.Discard)
+	if err != nil {
+		t.Fatalf("-version should not fail on other flags: %v", err)
+	}
+	if !c.Version {
+		t.Fatal("Version not set")
+	}
+}

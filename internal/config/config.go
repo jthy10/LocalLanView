@@ -75,8 +75,8 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 	fs.BoolVar(&c.TLSSelfSigned, "tls-self-signed", false, "serve HTTPS with a self-signed certificate stored in the data dir")
 	fs.BoolVar(&c.NoPortScan, "no-port-scan", false, "disable TCP port probes and banner grabbing")
 	fs.IntVar(&c.ProbeRate, "probe-rate", 100, "maximum probe packets per second")
-	fs.StringVar(&c.Webhook, "webhook", "", "POST new-device alerts to this URL (must be a local/private address)")
-	fs.BoolVar(&c.Notify, "notify", false, "show a desktop notification for new devices")
+	fs.StringVar(&c.Webhook, "webhook", "", "POST alerts (new devices, new ports, MAC changes) to this URL (must be a local/private address)")
+	fs.BoolVar(&c.Notify, "notify", false, "show a desktop notification for each alert")
 
 	fs.Usage = func() {
 		fmt.Fprintf(output, "Usage: LocalLanView [flags]\n\nFlags:\n")
@@ -85,6 +85,10 @@ func Parse(args []string, output io.Writer) (*Config, error) {
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
+	}
+	if c.Version {
+		// Print the version even if other flags have bad values.
+		return c, nil
 	}
 	if fs.NArg() > 0 {
 		return nil, fmt.Errorf("unexpected argument %q (all options are flags, see -h)", fs.Arg(0))
