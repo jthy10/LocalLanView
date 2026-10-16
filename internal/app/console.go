@@ -44,6 +44,7 @@ type console struct {
 	lan    bool
 	ln     net.Listener
 	srv    *http.Server
+	plain  *http.Server // redirects http:// to https:// on a TLS port
 	tlsCfg *tls.Config
 	moving bool
 	closed bool
@@ -83,6 +84,16 @@ func (c *console) bind(lan bool, port int, fallback bool) error {
 // serve serves the console on the bound listener in the background.
 func (c *console) serve() {
 	ln, tlsCfg := c.ln, c.tlsCfg
+	if tlsCfg != nil {
+		var plainLn net.Listener
+		ln, plainLn = splitTLS(ln)
+		c.plain = &http.Server{
+			Handler:           redirectHTTPS,
+			ReadHeaderTimeout: 10 * time.Second,
+			ErrorLog:          slog.NewLogLogger(c.log.Handler(), slog.LevelWarn),
+		}
+		go c.plain.Serve(plainLn) // ends when the console's listener closes
+	}
 	srv := &http.Server{
 		Handler:           c.handler(ln.Addr().(*net.TCPAddr).IP.IsLoopback(), tlsCfg),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -176,6 +187,7 @@ func (c *console) move(st *store.Store, on bool) {
 	}
 	port := c.ln.Addr().(*net.TCPAddr).Port
 	c.srv.Close()
+	c.closePlain()
 	if err := c.bind(on, port, false); err != nil {
 		c.log.Error("couldn't move the console", "lan", on, "err", err)
 		fmt.Fprintf(c.stderr, "Couldn't move the console: %v\n", err)
@@ -197,6 +209,14 @@ func (c *console) stop(ctx context.Context) {
 		c.srv.Shutdown(ctx)
 	} else {
 		c.ln.Close()
+	}
+	c.closePlain()
+}
+
+func (c *console) closePlain() {
+	if c.plain != nil {
+		c.plain.Close()
+		c.plain = nil
 	}
 }
 

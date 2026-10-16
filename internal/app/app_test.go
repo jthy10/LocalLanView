@@ -188,6 +188,28 @@ func TestSelfSignedTLS(t *testing.T) {
 	if !strings.HasPrefix(url, "https://") {
 		t.Fatalf("url %s", url)
 	}
+
+	// Plain http:// on the same port is sent to https://, not refused.
+	c := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Get("http://" + strings.TrimPrefix(url, "https://") + "devices?x=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != url+"devices?x=1" {
+		t.Fatalf("plain HTTP: %d, Location %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	// HTTPS still works.
+	c.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	resp, err = c.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("HTTPS: %d", resp.StatusCode)
+	}
 }
 
 // lanConfig is testConfig on a free port, which -lan keeps; -addr can't be
