@@ -73,7 +73,12 @@ func Restrict(path string) error {
 	return nil
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+// Close checkpoints the WAL into the main file, so everything written is in
+// locallanview.db itself, and closes the database.
+func (s *Store) Close() error {
+	s.checkpoint(context.Background())
+	return s.db.Close()
+}
 
 // Path returns the database file location.
 func (s *Store) Path() string { return s.path }

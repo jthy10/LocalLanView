@@ -92,6 +92,9 @@ staying root. The Capabilities page shows which features are on and why.
 
 The password can also come from `LOCALLANVIEW_PASSWORD`. There's no
 `-password` flag on purpose: it would show up in `ps` and shell history.
+A password from `-password-file` or the variable is applied when it's new;
+starting again with the same one keeps any change made on the Settings page.
+`-set-password` always applies it.
 
 ### Using it from your phone or other devices
 

@@ -162,3 +162,39 @@ func TestReopenKeepsData(t *testing.T) {
 		t.Fatalf("got %q", v)
 	}
 }
+
+// A password change must be in the main database file right away, not only
+// in the WAL, so losing the WAL in a crash can't bring the old login back.
+func TestCredentialsReachMainFile(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.SetCredentials(ctx, Credentials{User: "admin", Hash: "old", Generated: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetCredentials(ctx, Credentials{User: "admin", Hash: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	// Copy only the main file, as if the WAL had been lost.
+	b, err := os.ReadFile(s.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyPath := filepath.Join(dir, "copy.db")
+	if err := os.WriteFile(copyPath, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Open(copyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	got, err := c.Credentials(ctx)
+	if err != nil || got.Hash != "new" || got.Generated {
+		t.Fatalf("main file has %+v %v, want the new login", got, err)
+	}
+}
