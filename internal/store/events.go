@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -132,5 +133,23 @@ func (s *Store) SetCredentials(ctx context.Context, c Credentials) error {
 		c.User, c.Hash, c.Generated, ms(time.Now())); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return s.checkpoint(ctx)
+}
+
+// checkpoint copies the WAL into the main database file and syncs both.
+// With synchronous=NORMAL a WAL commit isn't fsynced, so without this a
+// power cut or hard reset soon after a password change can bring the old
+// password back on the next start.
+func (s *Store) checkpoint(ctx context.Context) error {
+	var busy, logPages, done int
+	if err := s.db.QueryRowContext(context.WithoutCancel(ctx), `PRAGMA wal_checkpoint(TRUNCATE)`).Scan(&busy, &logPages, &done); err != nil {
+		return fmt.Errorf("checkpointing database: %w", err)
+	}
+	if busy != 0 {
+		return errors.New("checkpointing database: database is busy")
+	}
+	return nil
 }

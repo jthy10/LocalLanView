@@ -1,7 +1,8 @@
-A fix for opening the console from a phone.
+A fix for console passwords that didn't stick after a restart.
 
 **Fixes**
-- Typing the console's address without `https://` (for example `192.168.1.50:8787`, which phones turn into `http://`) showed "Client sent an HTTP request to an HTTPS server". Plain HTTP on the console's port now redirects to the same address over HTTPS. This works with LAN access, `-tls-self-signed` and `-tls-cert`.
+- A password changed on the Settings page could stop working after the computer restarted, leaving only the first-run password from the terminal. The change sat in SQLite's write-ahead log, which isn't forced to disk, so a hard reset or power cut could lose it. Password changes are now written into the database file and synced right away.
+- Starting with `-password-file` or `LOCALLANVIEW_PASSWORD` put that password back on every start, undoing any change made on the Settings page. It's now applied only when the file or variable holds a new value (or with `-set-password`), so console changes survive restarts.
 
 New in 1.4.0: the **Use on other devices** switch under Settings, and the `-lan` flag, for opening the dashboard on your phone or other devices on your network.
 

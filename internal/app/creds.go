@@ -68,17 +68,35 @@ type credResult struct {
 	Source    string
 }
 
+// externalPasswordKey records (as an argon2id hash) the last password applied
+// from -password-file or LOCALLANVIEW_PASSWORD, so a restart can tell an
+// unchanged file/variable from a new one.
+const externalPasswordKey = "external_password_hash"
+
 // ensureCredentials applies the password rules:
-//   - a password given via file/env/prompt replaces the stored one;
+//   - with -set-password, the given password replaces the stored one;
+//   - a password from -password-file or the environment replaces the stored
+//     one only when it differs from the one applied last time, so a change
+//     made on the Settings page survives a restart;
 //   - on first run without one, a random password is generated and only
 //     its hash is stored;
 //   - -user renames the account without touching the password.
-func ensureCredentials(ctx context.Context, st *store.Store, user, pw, source string) (*credResult, error) {
+func ensureCredentials(ctx context.Context, st *store.Store, user, pw, source string, force bool) (*credResult, error) {
 	existing, err := st.Credentials(ctx)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return nil, err
 	}
 	res := &credResult{Source: source}
+
+	if pw != "" && existing != nil && !force {
+		if prev, err := st.Setting(ctx, externalPasswordKey); err == nil {
+			if ok, _ := auth.VerifyPassword(pw, prev); ok {
+				// Same file/variable as last start: keep whatever the
+				// login is now, including a change made in the console.
+				pw = ""
+			}
+		}
+	}
 
 	if pw != "" {
 		if err := auth.CheckStrength(pw, user); err != nil {
@@ -86,6 +104,9 @@ func ensureCredentials(ctx context.Context, st *store.Store, user, pw, source st
 		}
 		if existing != nil && existing.User == user && !existing.Generated {
 			if ok, _ := auth.VerifyPassword(pw, existing.Hash); ok {
+				if err := st.SetSetting(ctx, externalPasswordKey, existing.Hash); err != nil {
+					return nil, err
+				}
 				res.Creds = existing
 				return res, nil
 			}
@@ -96,6 +117,9 @@ func ensureCredentials(ctx context.Context, st *store.Store, user, pw, source st
 		}
 		c := store.Credentials{User: user, Hash: hash, Generated: false}
 		if err := st.SetCredentials(ctx, c); err != nil {
+			return nil, err
+		}
+		if err := st.SetSetting(ctx, externalPasswordKey, hash); err != nil {
 			return nil, err
 		}
 		res.Creds, res.Changed = &c, true
