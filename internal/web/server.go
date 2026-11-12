@@ -43,6 +43,9 @@ type Server struct {
 	SetLAN func(ctx context.Context, on bool) (any, error)
 	// OnPasswordChange is called after a successful password change.
 	OnPasswordChange func(generated bool)
+	// Version is sent with every response, so an open page can tell that
+	// the server behind it was updated and reload its scripts.
+	Version string
 	// CheckUpdate looks up the latest release; InstallUpdate installs it
 	// and restarts. Both only run when someone asks for them.
 	CheckUpdate   func(ctx context.Context) (any, error)
@@ -115,8 +118,15 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Cross-Origin-Resource-Policy", "same-origin")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()")
+		if s.Version != "" {
+			h.Set("X-LocalLanView-Version", s.Version)
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
+		} else {
+			// Embedded files carry no dates to revalidate against; refetch
+			// them so a new version's UI is used as soon as it's running.
+			h.Set("Cache-Control", "no-cache")
 		}
 		next.ServeHTTP(w, r)
 	})
