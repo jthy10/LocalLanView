@@ -142,7 +142,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	if err != nil {
 		return err
 	}
-	cr, err := ensureCredentials(ctx, st, cfg.User, pw, src)
+	cr, err := ensureCredentials(ctx, st, cfg.User, pw, src, cfg.SetPassword)
 	if err != nil {
 		return err
 	}

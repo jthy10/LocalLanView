@@ -353,3 +353,114 @@ func post(t *testing.T, c *http.Client, url, csrf, body string) *http.Response {
 	}
 	return resp
 }
+
+// startUntil runs the app like start, but returns a stop function so a test
+// can restart it on the same data directory.
+func startUntil(t *testing.T, cfg *config.Config, out io.Writer) (string, func()) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	ready := make(chan string, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, cfg, Options{
+			Version: "test", Stdout: out, Stderr: out, Checker: fakeChecker(false),
+			Network: loopbackNet(), NoSignal: true, Ready: func(u string) { ready <- u },
+		})
+	}()
+	var once sync.Once
+	stop := func() { once.Do(func() { cancel(); <-done }) }
+	t.Cleanup(stop)
+	select {
+	case u := <-ready:
+		return u, stop
+	case err := <-done:
+		t.Fatalf("Run exited early: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("app did not become ready")
+	}
+	return "", stop
+}
+
+func loginStatus(t *testing.T, url, pw string) int {
+	t.Helper()
+	b, _ := json.Marshal(map[string]string{"user": "admin", "password": pw})
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Post(url+"api/login", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+func changePassword(t *testing.T, url, cur, nw string) {
+	t.Helper()
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar, Timeout: 5 * time.Second}
+	csrf := loginAs(t, c, url, cur)
+	b, _ := json.Marshal(map[string]string{"current": cur, "new": nw})
+	resp := post(t, c, url+"api/password", csrf, string(b))
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("changing password: %d", resp.StatusCode)
+	}
+}
+
+func generatedPassword(out string) string {
+	pw := ""
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "      ") && strings.TrimSpace(l) != "" {
+			pw = strings.TrimSpace(l)
+		}
+	}
+	return pw
+}
+
+// The first-run password is printed, the user changes it in Settings and
+// restarts: only the new password may work.
+func TestPasswordChangeSurvivesRestart(t *testing.T) {
+	cfg := testConfig(t, "-addr", itoa(freePort(t)))
+	out := &syncBuf{}
+	url, stop := startUntil(t, cfg, out)
+	gen := generatedPassword(out.String())
+	if gen == "" {
+		t.Fatalf("no generated password printed:\n%s", out)
+	}
+	const mine = "My-Own-Console-Passw0rd"
+	changePassword(t, url, gen, mine)
+	stop()
+
+	out = &syncBuf{}
+	url, _ = startUntil(t, cfg, out)
+	if strings.Contains(out.String(), "shown only once") {
+		t.Fatalf("restart generated a new password:\n%s", out)
+	}
+	if code := loginStatus(t, url, mine); code != 200 {
+		t.Fatalf("new password after restart: %d", code)
+	}
+	if code := loginStatus(t, url, gen); code != http.StatusUnauthorized {
+		t.Fatalf("generated password still works after restart: %d", code)
+	}
+}
+
+// A password from LOCALLANVIEW_PASSWORD must not undo a change made in the
+// console on every restart, but a new value in the variable still applies.
+func TestEnvPasswordDoesNotUndoConsoleChange(t *testing.T) {
+	const env1, mine, env2 = "Env-Supplied-Passw0rd", "My-Own-Console-Passw0rd", "Second-Env-Passw0rd!"
+	t.Setenv(EnvPassword, env1)
+	cfg := testConfig(t, "-addr", itoa(freePort(t)))
+	url, stop := startUntil(t, cfg, &syncBuf{})
+	changePassword(t, url, env1, mine)
+	stop()
+
+	url, stop = startUntil(t, cfg, &syncBuf{})
+	if code := loginStatus(t, url, mine); code != 200 {
+		t.Fatalf("console password lost on restart with the same %s: %d", EnvPassword, code)
+	}
+	stop()
+
+	t.Setenv(EnvPassword, env2)
+	url, _ = startUntil(t, cfg, &syncBuf{})
+	if code := loginStatus(t, url, env2); code != 200 {
+		t.Fatalf("changed %s not applied: %d", EnvPassword, code)
+	}
+}
