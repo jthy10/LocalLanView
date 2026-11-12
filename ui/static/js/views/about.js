@@ -15,7 +15,7 @@ const DEVELOPER = {
 
 const ABOUT = [
   "LocalLanView is a simple tool for seeing what's on your home network. It finds the devices on your network, tells you what they are, and flags anything new.",
-  "It was built to be a lightweight alternative to bloated network scanners. It runs entirely on your own machine, stores everything locally, and never sends data anywhere.",
+  "It was built to be a lightweight alternative to bloated network scanners. It runs entirely on your own machine, stores everything locally, and never sends your data anywhere.",
 ];
 
 const ext = (href, kids, cls) => h("a", { class: cls, href, target: "_blank", rel: "noopener noreferrer" }, kids);
@@ -53,7 +53,7 @@ export function render(view) {
           h("dl", { class: "kv" },
             h("dt", {}, "Source"), h("dd", {}, ext(REPO, "github.com/jthy10/LocalLanView")),
             h("dt", {}, "License"), h("dd", {}, "MIT"),
-            h("dt", {}, "Privacy"), h("dd", {}, "No telemetry, no update checks, no outbound requests"),
+            h("dt", {}, "Privacy"), h("dd", {}, "No telemetry or background requests; GitHub is only contacted when you check for updates"),
             h("dt", {}, "Report an issue"), h("dd", {}, ext(REPO + "/issues", "GitHub issues"))),
         ),
       ),

@@ -43,6 +43,8 @@ export async function render(view) {
       section("Console password", "Changing it signs out every other session. The password is stored as an argon2id hash.", form),
       section("Use on other devices", "Lets phones, tablets and other computers on this network open LocalLanView. Off by default. Turning it on serves the console over HTTPS on every network interface.",
         lanSetting()),
+      section("Updates", "Checks GitHub for a newer release only when you press the button. The download is verified against the release's SHA256SUMS before it replaces this program, then LocalLanView restarts and you sign in again.",
+        updateSetting()),
       section("Export inventory", "Download every known device with its addresses, vendor, type and labels. Generated locally.",
         h("div", { class: "inline" },
           h("a", { class: "btn", href: "/api/export?format=csv", download: true }, icon("download"), "CSV"),
@@ -101,4 +103,72 @@ function lanSetting() {
           "If the page doesn't load, allow TCP port " + new URL(c.lanUrl).port + " through this computer's firewall."))) : null,
   );
   return body;
+}
+
+function updateSetting() {
+  const version = (state.status && state.status.version) || "dev";
+  const msg = h("div", { class: "hint" }, "Running ", h("span", { class: "mono" }, version), ".");
+  const err = h("div", { class: "error", role: "alert" });
+  const actions = h("div", { class: "inline update-actions" });
+
+  const check = h("button", { class: "btn", type: "button" }, icon("refresh"), "Check for updates");
+  check.addEventListener("click", async () => {
+    err.textContent = "";
+    check.disabled = true;
+    let c;
+    try {
+      c = await api("GET", "/api/update");
+    } catch (ex) {
+      err.textContent = ex.message;
+      check.disabled = false;
+      return;
+    }
+    check.disabled = false;
+    const latest = c.latest.version;
+    const notes = h("a", { href: c.latest.url, target: "_blank", rel: "noopener noreferrer" }, "release notes", icon("external", "ext"));
+    if (!c.newer) {
+      msg.replaceChildren("You're on the latest version (", h("span", { class: "mono" }, latest), ").");
+      actions.replaceChildren(check);
+      return;
+    }
+    msg.replaceChildren(h("span", { class: "mono" }, latest), " is available (you have ",
+      h("span", { class: "mono" }, c.current), "). See the ", notes, ".");
+    if (!c.canInstall) {
+      err.textContent = c.reason;
+      actions.replaceChildren(check);
+      return;
+    }
+    const install = h("button", { class: "btn btn-primary", type: "button" }, icon("download"), "Update to " + latest + " and restart");
+    install.addEventListener("click", () => installUpdate(latest, install, check, msg, err));
+    actions.replaceChildren(install, check);
+  });
+  actions.append(check);
+  return h("div", {}, msg, err, actions);
+}
+
+async function installUpdate(version, install, check, msg, err) {
+  err.textContent = "";
+  install.disabled = check.disabled = true;
+  msg.textContent = "Downloading and verifying " + version + "…";
+  try {
+    await api("POST", "/api/update", { version });
+  } catch (ex) {
+    err.textContent = ex.message;
+    msg.textContent = "";
+    install.disabled = check.disabled = false;
+    return;
+  }
+  msg.textContent = "Installed " + version + ". Restarting…";
+  // Wait for the old process to go away, then for the new one to answer.
+  await new Promise((r) => setTimeout(r, 2000));
+  for (let i = 0; i < 60; i++) {
+    try {
+      await fetch("/api/session", { credentials: "same-origin", cache: "no-store" });
+      location.reload();
+      return;
+    } catch (_) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  msg.textContent = "LocalLanView hasn't come back yet. Check the terminal it runs in, then reload this page.";
 }

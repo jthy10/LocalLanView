@@ -15,8 +15,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/jthy10/LocalLanView/internal/scan/ports"
 	"github.com/jthy10/LocalLanView/internal/scan/ssdp"
 	"github.com/jthy10/LocalLanView/internal/store"
+	"github.com/jthy10/LocalLanView/internal/update"
 	"github.com/jthy10/LocalLanView/internal/web"
 	"github.com/jthy10/LocalLanView/ui"
 )
@@ -53,6 +56,10 @@ type Options struct {
 	Ready    func(url string) // called once the console is serving
 	NoSignal bool
 }
+
+// ErrRestart is returned by Run after an update was installed; the caller
+// starts the new binary.
+var ErrRestart = errors.New("restart requested")
 
 type scanState struct {
 	mu        sync.Mutex
@@ -174,6 +181,13 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		return err
 	}
 	defer cons.stop(context.Background())
+
+	// A restarted process keeps root, Administrator or no rights at all, but
+	// not rights it gave up or file capabilities lost with the old binary.
+	updateBlocked := ""
+	if runtime.GOOS != "windows" && (dropping || (priv.HasRights && !privilege.IsRoot())) {
+		updateBlocked = "LocalLanView can't restart itself with the rights it was started with. Download the new release from GitHub and start it the same way you started this one."
+	}
 
 	// 8. Drop root now that the sockets are open; they stay usable.
 	if dropping {
@@ -342,6 +356,18 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var restart atomic.Bool
+	upd := &update.Updater{Current: opt.Version, Blocked: updateBlocked}
+	srv.CheckUpdate = func(ctx context.Context) (any, error) { return upd.Check(ctx) }
+	srv.InstallUpdate = func(ctx context.Context, version string) error {
+		if err := upd.Install(ctx, version); err != nil {
+			return err
+		}
+		log.Info("update installed, restarting", "version", version)
+		// Give the response a moment to reach the browser.
+		time.AfterFunc(500*time.Millisecond, func() { restart.Store(true); cancel() })
+		return nil
+	}
 	if !opt.NoSignal {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -376,6 +402,9 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 	shutCtx, done := context.WithTimeout(context.Background(), 5*time.Second)
 	defer done()
 	cons.stop(shutCtx)
+	if restart.Load() {
+		return ErrRestart
+	}
 	return nil
 }
 

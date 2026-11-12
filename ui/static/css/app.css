@@ -616,6 +616,8 @@ td.wrap { white-space: normal; color: var(--muted); }
 }
 .lan-url > svg { flex: none; width: 18px; height: 18px; color: var(--accent); margin-top: 1px; }
 .lan-url a { overflow-wrap: anywhere; }
+.update-actions { margin-top: 12px; flex-wrap: wrap; }
+.setting .hint svg.ext { width: 12px; height: 12px; vertical-align: -1px; margin-left: 2px; }
 
 /* ---------- login ---------- */
 
