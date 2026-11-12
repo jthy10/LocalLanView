@@ -1,11 +1,11 @@
-A fix for console passwords that didn't stick after a restart.
+One-click updates from the dashboard.
 
-**Fixes**
-- A password changed on the Settings page could stop working after the computer restarted, leaving only the first-run password from the terminal. The change sat in SQLite's write-ahead log, which isn't forced to disk, so a hard reset or power cut could lose it. Password changes are now written into the database file and synced right away.
-- Starting with `-password-file` or `LOCALLANVIEW_PASSWORD` put that password back on every start, undoing any change made on the Settings page. It's now applied only when the file or variable holds a new value (or with `-set-password`), so console changes survive restarts.
-- Built with Go 1.26.11, which fixes an HTTP server crash in the standard library (GO-2026-6859).
+**New**
+- **Updates** under Settings. **Check for updates** asks GitHub for the latest release; if there's a newer one, **Update and restart** downloads the build for your OS, checks it against `SHA256SUMS`, makes sure it runs, swaps it in and restarts LocalLanView with the same options. Sign in again afterwards.
+- GitHub is only contacted when you press the button. There are still no background update checks or telemetry.
+- Updating from the button isn't available when LocalLanView was started with `sudo`/`-run-as` and dropped root, or got its rights from `setcap`, because a restart would lose them. Download the new release and start it the same way instead.
 
-New in 1.4.0: the **Use on other devices** switch under Settings, and the `-lan` flag, for opening the dashboard on your phone or other devices on your network.
+From 1.4.2: password changes made on the Settings page now survive restarts.
 
 Grab the binary for your OS below and check it: `sha256sum -c --ignore-missing SHA256SUMS`. On Linux/macOS: `chmod +x` first. Run as root/admin (or `setcap cap_net_raw+ep` on Linux) for raw ARP and ICMP; it still works without, just sees less.
 
