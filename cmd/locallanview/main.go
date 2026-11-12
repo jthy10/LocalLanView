@@ -10,6 +10,7 @@ import (
 
 	"github.com/jthy10/LocalLanView/internal/app"
 	"github.com/jthy10/LocalLanView/internal/config"
+	"github.com/jthy10/LocalLanView/internal/update"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -28,7 +29,13 @@ func main() {
 		fmt.Println("LocalLanView", version)
 		return
 	}
-	if err := app.Run(context.Background(), cfg, app.Options{Version: version}); err != nil {
+	update.Cleanup()
+	err = app.Run(context.Background(), cfg, app.Options{Version: version})
+	if errors.Is(err, app.ErrRestart) {
+		fmt.Println("Restarting with the new version...")
+		err = update.Restart()
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "LocalLanView:", err)
 		os.Exit(1)
 	}

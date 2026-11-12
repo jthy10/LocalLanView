@@ -17,7 +17,8 @@ runs, and when it's around. Treat its database and console accordingly.
 | Formula injection in CSV export | Cells starting with `= + - @` are prefixed with `'`. |
 | Other local users reading the database | Data dir is `0700`, files `0600`, process umask `077` (Unix). On Windows it lives in the user's profile. |
 | Running as root longer than needed | Raw sockets are opened first, then the process drops back to the user who ran `sudo`, `doas` or `pkexec`, or to the `-run-as` account. Started as root with neither, it warns that it's staying root. On Linux, `setcap cap_net_raw+ep` avoids root entirely. |
-| Data leaving the network | No telemetry, update checks or CDN assets. HTTP clients ignore proxy settings. SSDP descriptions are only fetched from the device that announced them. Webhooks must point at loopback/private IPs. |
+| Data leaving the network | No telemetry, background update checks or CDN assets. GitHub is contacted only when you press **Check for updates** in Settings. HTTP clients that talk to the LAN ignore proxy settings. SSDP descriptions are only fetched from the device that announced them. Webhooks must point at loopback/private IPs. |
+| A tampered update | Updates are only installed when you ask. The binary is fetched over HTTPS from the latest GitHub release, must match that release's `SHA256SUMS`, and must report the expected version before it replaces the running one. Both files come from the same release, so this guards against corrupt downloads, not a compromised GitHub account. |
 | Probing things you didn't mean to | All probes are rate limited and restricted to the attached subnet (largest /16). `-subnet` can only narrow it. |
 
 ## Not covered

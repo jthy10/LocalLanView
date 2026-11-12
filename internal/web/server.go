@@ -43,6 +43,10 @@ type Server struct {
 	SetLAN func(ctx context.Context, on bool) (any, error)
 	// OnPasswordChange is called after a successful password change.
 	OnPasswordChange func(generated bool)
+	// CheckUpdate looks up the latest release; InstallUpdate installs it
+	// and restarts. Both only run when someone asks for them.
+	CheckUpdate   func(ctx context.Context) (any, error)
+	InstallUpdate func(ctx context.Context, version string) error
 	// StreamPing is how often the event stream pings and rechecks the
 	// session (default 25s).
 	StreamPing time.Duration
@@ -76,6 +80,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/scan", s.authed(s.handleScan))
 	mux.Handle("POST /api/password", s.authed(s.handlePassword))
 	mux.Handle("POST /api/console", s.authed(s.handleConsole))
+	mux.Handle("GET /api/update", s.authed(s.handleCheckUpdate))
+	mux.Handle("POST /api/update", s.authed(s.handleInstallUpdate))
 	mux.Handle("GET /api/export", s.authed(s.handleExport))
 	mux.Handle("GET /api/stream", s.authed(s.handleStream))
 	mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +303,38 @@ func (s *Server) handleConsole(w http.ResponseWriter, r *http.Request, _ *auth.S
 		return
 	}
 	writeJSON(w, http.StatusOK, info)
+}
+
+func (s *Server) handleCheckUpdate(w http.ResponseWriter, r *http.Request, _ *auth.Session) {
+	if s.CheckUpdate == nil {
+		writeError(w, http.StatusNotImplemented, "not available")
+		return
+	}
+	c, err := s.CheckUpdate(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) handleInstallUpdate(w http.ResponseWriter, r *http.Request, _ *auth.Session) {
+	var req struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Version == "" {
+		writeError(w, http.StatusBadRequest, "bad request")
+		return
+	}
+	if s.InstallUpdate == nil {
+		writeError(w, http.StatusNotImplemented, "not available")
+		return
+	}
+	if err := s.InstallUpdate(r.Context(), req.Version); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": req.Version})
 }
 
 func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request, sess *auth.Session) {

@@ -18,7 +18,9 @@ binary, a web dashboard, and nothing ever leaves your network.
 - Remembers first/last seen, IP and hostname history
 - Alerts for new devices, newly opened ports, and an IP moving to a new MAC
 - Rename, tag and mark devices as trusted; export to CSV/JSON
-- Fully offline: no telemetry, no update checks, no CDN
+- Fully offline: no telemetry, no background update checks, no CDN
+- One-click updates from Settings: downloads the latest release, checks it
+  against `SHA256SUMS` and restarts
 
 ## Quick start
 
