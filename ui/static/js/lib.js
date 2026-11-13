@@ -166,6 +166,17 @@ export class APIError extends Error {
 let onUnauthorized = () => {};
 export function setUnauthorizedHandler(fn) { onUnauthorized = fn; }
 
+// The scripts on this page came from whichever version answered first. If
+// a later answer comes from another version (it was updated and restarted
+// underneath us), reload so the page runs that version's scripts.
+let pageVersion = null;
+function checkVersion(res) {
+  const v = res.headers.get("X-LocalLanView-Version");
+  if (!v) return;
+  if (pageVersion === null) pageVersion = v;
+  else if (v !== pageVersion) location.reload();
+}
+
 export async function api(method, path, body) {
   const opts = { method, headers: {}, credentials: "same-origin" };
   if (body !== undefined) {
@@ -174,6 +185,7 @@ export async function api(method, path, body) {
   }
   if (method !== "GET" && state.csrf) opts.headers["X-CSRF-Token"] = state.csrf;
   const res = await fetch(path, opts);
+  checkVersion(res);
   if (res.status === 401 && path !== "/api/login") {
     state.csrf = null;
     onUnauthorized();

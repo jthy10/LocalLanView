@@ -295,6 +295,7 @@ func Run(ctx context.Context, cfg *config.Config, opt Options) error {
 		Static:  ui.FS(),
 		Log:     log,
 		ScanNow: engine.ScanNow,
+		Version: opt.Version,
 	}
 	generated := cr.Creds.Generated
 	var genMu sync.Mutex

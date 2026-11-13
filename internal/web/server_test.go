@@ -109,6 +109,19 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestVersionAndCaching(t *testing.T) {
+	e := setup(t, true, func(s *Server) { s.Version = "v9.9.9" })
+	for path, cache := range map[string]string{"/": "no-cache", "/api/session": "no-store"} {
+		resp := e.do(t, "GET", path, nil, false)
+		if got := resp.Header.Get("X-LocalLanView-Version"); got != "v9.9.9" {
+			t.Errorf("%s: version header %q", path, got)
+		}
+		if got := resp.Header.Get("Cache-Control"); got != cache {
+			t.Errorf("%s: Cache-Control %q, want %q", path, got, cache)
+		}
+	}
+}
+
 func TestAuthRequired(t *testing.T) {
 	e := setup(t, false)
 	for _, p := range []string{"/api/devices", "/api/status", "/api/events", "/api/export"} {
