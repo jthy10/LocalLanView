@@ -1,11 +1,9 @@
-One-click updates from the dashboard.
+A small fix for updating.
 
-**New**
-- **Updates** under Settings. **Check for updates** asks GitHub for the latest release; if there's a newer one, **Update and restart** downloads the build for your OS, checks it against `SHA256SUMS`, makes sure it runs, swaps it in and restarts LocalLanView with the same options. Sign in again afterwards.
-- GitHub is only contacted when you press the button. There are still no background update checks or telemetry.
-- Updating from the button isn't available when LocalLanView was started with `sudo`/`-run-as` and dropped root, or got its rights from `setcap`, because a restart would lose them. Download the new release and start it the same way instead.
+**Fixes**
+- After an update, a tab that was already open kept running the previous version's dashboard until it was closed and reopened, so new pages and settings (like **Updates** in 1.5.0) didn't show up. Open pages now notice the new version and reload on their own.
 
-From 1.4.2: password changes made on the Settings page now survive restarts.
+New in 1.5.0: **Updates** under Settings. **Check for updates** asks GitHub for the latest release, and **Update and restart** downloads it, checks it against `SHA256SUMS` and restarts LocalLanView. GitHub is only contacted when you press the button. It isn't available when LocalLanView dropped root after starting (`sudo`, `-run-as`) or got its rights from `setcap`; download the release by hand in that case.
 
 Grab the binary for your OS below and check it: `sha256sum -c --ignore-missing SHA256SUMS`. On Linux/macOS: `chmod +x` first. Run as root/admin (or `setcap cap_net_raw+ep` on Linux) for raw ARP and ICMP; it still works without, just sees less.
 
